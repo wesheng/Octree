@@ -3,18 +3,15 @@
 #include <array>
 #include <Octree.h>
 
-void print_vec(Vec3 point)
-{
-    std::cout << "(" << point.x << ", " << point.y << ", " << point.z << ")";
-}
+
 
 int main()
 {
     std::random_device rand_device;
     std::default_random_engine rand_engine { rand_device()};
-    std::uniform_real_distribution<float> rand_dist{ -100.0f, 100.0f };
+    std::uniform_real_distribution<float> rand_dist{ -50.0f, 50.0f };
     
-    std::array<Vec3, 1000> points;
+    std::array<Vec3, 5000> points;
 
     Bounds b{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
     Octree<10> octree{ b, 5 };

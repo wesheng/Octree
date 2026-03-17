@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <stdexcept>
 
 struct Vec3
 {
@@ -57,6 +58,15 @@ struct Bounds
         size = max - min;
         center = min + get_half_size();
     }
+
+    inline bool contains(Vec3 point)
+    {
+        Vec3 min = get_min();
+        Vec3 max = get_max();
+        return (point.x > min.x && point.x < max.x) &&
+            (point.y > min.y && point.y < max.y) &&
+            (point.z > min.z && point.z < max.z);
+    }
 };
 
 /**
@@ -73,6 +83,11 @@ public:
 
     inline void add(Vec3 point)
     {
+        if (!bounds_.contains(point))
+        {
+            throw std::exception("Point not in bounds.");
+        }
+
         if (children_ != nullptr)
         {
             // find child to insert
@@ -129,14 +144,14 @@ private:
             for (int i = 0; i < 8; i++)
             {
                 Vec3 child_min{
-                    (i & (1 << 0)) ? min.x : center.x,
-                    (i & (1 << 1)) ? min.y : center.y,
-                    (i & (1 << 2)) ? min.z : center.z
+                    ((i & (1 << 0)) == 0) ? min.x : center.x,
+                    ((i & (1 << 1)) == 0) ? min.y : center.y,
+                    ((i & (1 << 2)) == 0) ? min.z : center.z
                 };
                 Vec3 child_max{
-                    (i & (1 << 0)) ? center.x : max.x,
-                    (i & (1 << 1)) ? center.y : max.y,
-                    (i & (1 << 2)) ? center.z : max.z
+                    ((i & (1 << 0)) == 0) ? center.x : max.x,
+                    ((i & (1 << 1)) == 0) ? center.y : max.y,
+                    ((i & (1 << 2)) == 0) ? center.z : max.z
                 };
 
                 Bounds b;
