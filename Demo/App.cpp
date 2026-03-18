@@ -1,9 +1,7 @@
 ﻿#include "App.h"
-#include <random>
 #include <array>
 #include <Octree.h>
-
-
+#include <random>
 
 int main()
 {

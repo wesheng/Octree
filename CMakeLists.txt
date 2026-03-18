@@ -12,5 +12,8 @@ endif()
 project ("Octree")
 
 # Include sub-projects.
-add_subdirectory ("Octree")
+add_subdirectory("Octree")
+add_subdirectory("Utility")
 add_subdirectory("Demo")
+
+add_subdirectory("Tests")

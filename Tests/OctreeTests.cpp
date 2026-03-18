@@ -1,0 +1,39 @@
+#include <gtest/gtest.h>
+#include <gtest/gtest-param-test.h>
+#include <Octree.h>
+#include <random>
+
+class OctreePointsFixture : public testing::TestWithParam<int> {};
+
+TEST(OctreeTest, AddPointInBounds)
+{
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
+    Octree<5> octree{ bounds, 5 };
+    EXPECT_NO_THROW(octree.add({ 0.0f, 0.0f, 0.0f }));
+}
+
+TEST(OctreeTest, TryPlaceOutsideBounds)
+{
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
+    Octree<5> octree{ bounds, 5 };
+    EXPECT_ANY_THROW(octree.add({ 500.0f, 500.0f, 500.0f }));
+}
+
+TEST_P(OctreePointsFixture, AddMultiplePoints)
+{
+    float size = 100.0f;
+
+    std::random_device rand_device;
+    std::default_random_engine rand_engine{ rand_device() };
+    std::uniform_real_distribution<float> rand_dist{ -size / 2.0f, size / 2.0f };
+
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {size, size, size}  };
+    Octree<5> octree{ bounds, 5 };
+    for (int i = 0; i < GetParam(); i++)
+    {
+        Vec3 point{ rand_dist(rand_engine), rand_dist(rand_engine) , rand_dist(rand_engine) };
+        octree.add(point);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(ManyPoints, OctreePointsFixture, testing::Values(1, 10, 100, 1000, 10000));
