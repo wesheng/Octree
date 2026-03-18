@@ -5,10 +5,8 @@
 #include <vector>
 #include <string>
 #include <sstream>
-#include <stdexcept>
 #include <Vec3.h>
 #include <Bounds.h>
-#include <algorithm>
 #include <tuple>
 
 /**

@@ -1,5 +1,8 @@
 #include "Octree.h"
 
+#include <stdexcept>
+#include <algorithm>
+
 void Octree::add(Vec3 point)
 {
     if (!bounds_.contains(point))
