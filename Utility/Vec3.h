@@ -47,7 +47,6 @@ struct Vec3
         return (a - b).magnitude();
     }
 
-
     operator std::string() const {
         std::ostringstream s;
         s << "(" << x << ", " << y << ", " << z << ")";

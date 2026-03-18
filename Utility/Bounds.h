@@ -1,5 +1,6 @@
 #pragma once
 #include "Vec3.h"
+#include "Mathf.h"
 
 struct Bounds
 {
@@ -30,8 +31,22 @@ struct Bounds
     {
         Vec3 min = get_min();
         Vec3 max = get_max();
-        return (point.x > min.x && point.x < max.x) &&
-            (point.y > min.y && point.y < max.y) &&
-            (point.z > min.z && point.z < max.z);
+        return (point.x >= min.x && point.x <= max.x) &&
+            (point.y >= min.y && point.y <= max.y) &&
+            (point.z >= min.z && point.z <= max.z);
+    }
+
+    inline bool intersects_sphere(Vec3 center, float radius)
+    {
+        // sphere - aabb test
+        Vec3 min = get_min();
+        Vec3 max = get_max();
+        Vec3 clamped = {
+            Mathf::clamp(center.x, min.x, max.x),
+            Mathf::clamp(center.y, min.y, max.y),
+            Mathf::clamp(center.z, min.z, max.z)
+        };
+        float sqr_distance = Vec3::sqr_distance(clamped, center);
+        return sqr_distance <= radius * radius;
     }
 };
