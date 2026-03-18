@@ -41,12 +41,35 @@ public:
         num_points_++;
     }
 
+    inline bool has(Vec3 point)
+    {
+        if (bounds_.contains(point))
+        {
+            if (children_ != nullptr)
+            {
+                unsigned index = get_child_index(point);
+                return (*children_)[index].has(point);
+            }
+            else
+            {
+                for (auto p : points_)
+                {
+                    if (p == point) return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+
     operator std::string()
     {
         return to_string(0);
     }
 
 private:
+
     inline void try_insert_point(Vec3 point)
     {
         points_.push_back(point);
@@ -56,13 +79,18 @@ private:
         }
     }
 
-    inline void insert_children(Vec3 point)
+    inline unsigned get_child_index(Vec3 point)
     {
         bool greater_x = point.x > bounds_.center.x;
         bool greater_y = point.y > bounds_.center.y;
         bool greater_z = point.z > bounds_.center.z;
 
-        unsigned index = (greater_x << 0) + (greater_y << 1) + (greater_z << 2);
+        return (greater_x << 0) + (greater_y << 1) + (greater_z << 2);
+    }
+
+    inline void insert_children(Vec3 point)
+    {
+        unsigned index = get_child_index(point);
         (*children_)[index].add(point);
     }
 

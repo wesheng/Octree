@@ -2,6 +2,7 @@
 #include <gtest/gtest-param-test.h>
 #include <Octree.h>
 #include <random>
+#include <cstdlib>
 
 class OctreePointsFixture : public testing::TestWithParam<int> {};
 
@@ -32,8 +33,35 @@ TEST_P(OctreePointsFixture, AddMultiplePoints)
     for (int i = 0; i < GetParam(); i++)
     {
         Vec3 point{ rand_dist(rand_engine), rand_dist(rand_engine) , rand_dist(rand_engine) };
+        EXPECT_NO_THROW(octree.add(point));
+    }
+}
+
+TEST_P(OctreePointsFixture, FindFromPoints)
+{
+    float size = 100.0f;
+    int count = GetParam();
+
+    std::random_device rand_device;
+    std::default_random_engine rand_engine{ rand_device() };
+    std::uniform_real_distribution<float> rand_dist{ -size / 2.0f, size / 2.0f };
+    std::uniform_int_distribution<> rand_index{ 0, count - 1 };
+
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {size, size, size} };
+    Octree<5> octree{ bounds, 5 };
+    int index = rand_index(rand_engine);
+    Vec3 val;
+    for (int i = 0; i < GetParam(); i++)
+    {
+        Vec3 point{ rand_dist(rand_engine), rand_dist(rand_engine) , rand_dist(rand_engine) };
+
+        if (i == index)
+            val = point;
+
         octree.add(point);
     }
+
+    EXPECT_TRUE(octree.has(val));
 }
 
 INSTANTIATE_TEST_SUITE_P(ManyPoints, OctreePointsFixture, testing::Values(1, 10, 100, 1000, 10000));
