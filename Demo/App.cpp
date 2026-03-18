@@ -13,7 +13,7 @@ int main()
     std::uniform_int_distribution<> rand_int { 0, points.size() - 1};
 
     Bounds b{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
-    Octree<10> octree{ b, 5 };
+    Octree octree{ b, 10, 5 };
     for (int i = 0; i < points.size(); i++)
     {
         points[i] = Vec3{ rand_dist(rand_engine), rand_dist(rand_engine), rand_dist(rand_engine) };
