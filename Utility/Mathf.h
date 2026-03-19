@@ -8,4 +8,5 @@ public:
     {
         return (val < min) ? min : ((val > max) ? max : val);
     }
+
 };

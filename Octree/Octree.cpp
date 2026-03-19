@@ -102,6 +102,65 @@ void Octree::nearest(Vec3 point, int k_count, std::vector<std::tuple<Vec3, float
     }
 }
 
+std::vector<const Octree*> Octree::intersects_nodes(Vec3 ray_origin, Vec3 ray_direction)
+{
+    // returns const Octree * to prevent manipulation of data
+    std::vector<const Octree*> output;
+    intersects_nodes(ray_origin, ray_direction, output);
+    return output;
+}
+
+void Octree::intersects_nodes(Vec3 ray_origin, Vec3 ray_direction, std::vector<const Octree*>& candidates)
+{
+    if (is_leaf())
+    {
+        if (bounds_.intersects_ray(ray_origin, ray_direction))
+        {
+            candidates.push_back(this);
+        }
+    }
+    else
+    {
+        for (auto& child : (*children_))
+        {
+            if (bounds_.intersects_ray(ray_origin, ray_direction))
+            {
+                // a check is done here to avoid having to test intersection on leaf nodes twice.
+                if (child.is_leaf())
+                {
+                    candidates.push_back(&child);
+                }
+                else
+                {
+                    child.intersects_nodes(ray_origin, ray_direction, candidates);
+                }
+            }
+        }
+    }
+}
+
+std::vector<Vec3> Octree::intersects_points(Vec3 ray_origin, Vec3 ray_direction, float tolerance)
+{
+    std::vector<const Octree*> nodes = intersects_nodes(ray_origin, ray_direction);
+    std::vector<Vec3> output;
+    for (auto node : nodes)
+    {
+        for (auto point : node->points_)
+        {
+            // ray-sphere intersection. we're treating the points as spheres as provided by tolerance.
+            // https://iquilezles.org/articles/intersectors/
+            // that code is for SDFs, but we're just strictly checking if intersect or not.
+            Vec3 dif = ray_origin - point;
+            float b = Vec3::dot(dif, ray_direction);
+            float c = Vec3::dot(dif, dif) - (tolerance * tolerance);
+            float h = b * b - c;
+            if (h >= 0.0f) output.push_back(point);
+        }
+    }
+    return output;
+}
+
+
 void Octree::try_insert_point(Vec3 point)
 {
     points_.push_back(point);

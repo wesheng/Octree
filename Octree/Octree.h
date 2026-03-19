@@ -13,7 +13,6 @@
  * @brief Recursive data structure for storing points within octants in a 3D space.
  */
 class Octree {
-private:
     using Octants = std::array<Octree, 8>;
 public:
     Octree() = default;
@@ -24,6 +23,14 @@ public:
     void add(Vec3 point);
     bool has(Vec3 point);
     std::vector<Vec3> nearest(Vec3 point, int k_count);
+    /**
+     * @brief Raycasts the Octree for leaf nodes that intersect the ray. 
+     * @param ray_origin The origin of the ray
+     * @param ray_direction The direction of the ray
+     * @return A list of Octree nodes.
+     */
+    std::vector<const Octree*> intersects_nodes(Vec3 ray_origin, Vec3 ray_direction);
+    std::vector<Vec3> intersects_points(Vec3 ray_origin, Vec3 ray_direction, float tolerance = 0.001f);
 
     operator std::string()
     {
@@ -32,10 +39,15 @@ public:
 
 private:
     void nearest(Vec3 point, int k_count, std::vector<std::tuple<Vec3, float>>& candidates);
+    void intersects_nodes(Vec3 ray_origin, Vec3 ray_direction, std::vector<const Octree*>& candidates);
     void try_insert_point(Vec3 point);
     unsigned get_child_index(Vec3 point);
     void insert_children(Vec3 point);
     void subdivide();
+
+    inline bool is_leaf() {
+        return children_ == nullptr;
+    }
 
     inline void set_bounds(Bounds bounds)
     {

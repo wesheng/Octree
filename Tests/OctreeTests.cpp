@@ -132,4 +132,88 @@ TEST(OctreeTest, NearestInAnotherOctant)
 
     std::vector<Vec3> nearest;
     EXPECT_NO_THROW(nearest = octree.nearest(test_point, 1));
+    EXPECT_GE(nearest.size(), 1);
+    EXPECT_TRUE(Vec3::approx(nearest.front(), point));
+}
+
+TEST(OctreeTest, RayIntersectsRootNodes)
+{
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
+    Octree octree{ bounds, 5, 5 };
+
+    Vec3 point = { 10.0f, 10.0f, 10.0f };
+    octree.add(point);
+
+    Vec3 ray_position{ 0.0f, 0.0f, 100.0f };
+    Vec3 ray_direction{ 0.0f, 0.0f, -1.0f };
+
+    std::vector<const Octree*> intersections;
+    EXPECT_NO_THROW(intersections = octree.intersects_nodes(ray_position, ray_direction));
+    EXPECT_GE(intersections.size(), 1);
+}
+
+TEST(OctreeTest, RayNotIntersectsRootNodes)
+{
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
+    Octree octree{ bounds, 5, 5 };
+
+    Vec3 point = { 10.0f, 10.0f, 10.0f };
+    octree.add(point);
+
+    // offsetted to the side so that it's parellel to aabb.
+    Vec3 ray_position{ 100.0f, 0.0f, 100.0f };
+    Vec3 ray_direction{ 0.0f, 0.0f, -1.0f };
+
+    std::vector<const Octree*> intersections;
+    EXPECT_NO_THROW(intersections = octree.intersects_nodes(ray_position, ray_direction));
+    EXPECT_LE(intersections.size(), 0);
+}
+
+TEST(OctreeTest, RayFacingAwayNodes)
+{
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
+    Octree octree{ bounds, 5, 5 };
+
+    Vec3 point = { 10.0f, 10.0f, 10.0f };
+    octree.add(point);
+
+    Vec3 ray_position{ 0.0f, 0.0f, 100.0f };
+    Vec3 ray_direction{ 0.0f, 0.0f, 1.0f };
+
+    std::vector<const Octree*> intersections;
+    EXPECT_NO_THROW(intersections = octree.intersects_nodes(ray_position, ray_direction));
+    EXPECT_LE(intersections.size(), 0);
+}
+
+TEST(OctreeTest, RayIntersectsPoint)
+{
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
+    Octree octree{ bounds, 5, 5 };
+
+    Vec3 point = { 10.0f, 10.0f, 10.0f };
+    octree.add(point);
+
+    Vec3 ray_position{ 10.0f, 10.0f, 100.0f };
+    Vec3 ray_direction{ 0.0f, 0.0f, -1.0f };
+
+    std::vector<Vec3> intersections;
+    EXPECT_NO_THROW(intersections = octree.intersects_points(ray_position, ray_direction));
+    EXPECT_GT(intersections.size(), 0);
+    EXPECT_EQ(intersections.front(), point);
+}
+
+TEST(OctreeTest, RayDoesNotIntersectPoint)
+{
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
+    Octree octree{ bounds, 5, 5 };
+
+    Vec3 point = { 10.0f, 10.0f, 10.0f };
+    octree.add(point);
+
+    Vec3 ray_position{ 0.0f, 0.0f, 100.0f };
+    Vec3 ray_direction{ 0.0f, 0.0f, -1.0f };
+
+    std::vector<Vec3> intersections;
+    EXPECT_NO_THROW(intersections = octree.intersects_points(ray_position, ray_direction));
+    EXPECT_LE(intersections.size(), 0);
 }
