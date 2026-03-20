@@ -132,8 +132,10 @@ glm::mat4 global_transform;
 glm::mat4 view = glm::lookAt(glm::vec3{ 0.0f, 0.0f, -75.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
 glm::mat4 projection = glm::perspective(45.0f, (float)width / (float)height, 0.001f, 1000.0f);
 
-glm::vec3 ray_origin = glm::vec3{ 20.0f, 10.0f, -20.0f };
-glm::vec3 ray_rotation = glm::vec3{ 20.0f, 310.0f, 0.0f };
+glm::vec3 ray_origin = glm::vec3{ 10.0f, 10.0f, -10.0f };
+glm::vec3 ray_rotation_euler = glm::vec3{ 15.0f, 330.0f, 0.0f };
+glm::quat ray_rotation{ glm::vec3{0.0f} };
+float ray_tolerance = 0.001f;
 
 void setup_gl()
 {
@@ -216,14 +218,24 @@ void draw_cube(glm::vec3 position, glm::vec3 scale, glm::vec3 color = glm::vec3{
     glBindProgramPipeline(0);
 }
 
-void draw_octant(const Octree* octant)
+void draw_octant(const Octree* octant, const glm::vec3* color = nullptr)
 {
     Bounds bounds = octant->get_bounds();
     glm::vec3 pos = toGLMVec3(bounds.center);
     glm::vec3 size = toGLMVec3(bounds.size);
-    glm::vec3 base_color = glm::vec3{ 0.9f };
-    float color_mult = 0.1f;
-    draw_cube(pos, size, base_color - octant->get_depth_level() * color_mult);
+    glm::vec3 draw_color;
+    if (color)
+    {
+        draw_color = *color;
+    }
+    else
+    {
+        glm::vec3 base_color = glm::vec3{ 0.9f };
+        float color_mult = 0.1f;
+        draw_color = base_color - octant->get_depth_level() * color_mult;
+    }
+
+    draw_cube(pos, size, draw_color);
 
     //glBindProgramPipeline(p_cube);
     //glPointSize(1.0f);
@@ -255,7 +267,8 @@ void draw_points()
 void draw_ray()
 {
     glm::mat4 t = glm::translate(glm::mat4{ 1.0f }, ray_origin);
-    glm::mat4 r = glm::mat4_cast(glm::quat{ glm::radians(ray_rotation) });
+    ray_rotation = glm::quat{ glm::radians(ray_rotation_euler) };
+    glm::mat4 r = glm::mat4_cast(ray_rotation);
     glm::mat4 s = glm::scale(glm::mat4{ 1.0f }, glm::vec3{ 1000.0f });
     glm::mat4 mvp = projection * view * global_transform * t * r * s;
 
@@ -272,6 +285,17 @@ void draw_ray()
     glBindProgramPipeline(0);
 }
 
+void handle_raycast()
+{
+    glm::vec3 rot_vec = ray_rotation * glm::vec3{ 0.0f, 0.0f, 1.0f };
+    auto nodes = octree.intersects_nodes(toVec3(ray_origin), toVec3(rot_vec));
+    glm::vec3 color = glm::vec3{ 1.0f, 0.4f, 0.4f };
+    for (auto node : nodes)
+    {
+        draw_octant(node, &color);
+    }
+}
+
 void run()
 {
     glm::mat4 g_r = glm::mat4_cast(glm::quat{ glm::radians(global_rotation) });
@@ -284,16 +308,17 @@ void run()
     }
     draw_points();
     draw_ray();
+    handle_raycast();
 
     ImGui::Begin("Settings");
     ImGui::SliderFloat3("Rotation", glm::value_ptr(global_rotation), 0.0f, 360.0f);
-    ImGui::SliderFloat("Scale", &global_scale, 0.25f, 2.0f);
+    ImGui::SliderFloat("Scale", &global_scale, 0.25f, 4.0f);
 
     if (ImGui::TreeNode("Ray"))
     {
         ImGui::InputFloat3("Origin", glm::value_ptr(ray_origin));
-        ImGui::SliderFloat3("Rotation", glm::value_ptr(ray_rotation), 0.0f, 360.0f);
-
+        ImGui::SliderFloat3("Rotation", glm::value_ptr(ray_rotation_euler), 0.0f, 360.0f);
+        ImGui::InputFloat("Cast Tolerance", &ray_tolerance);
         ImGui::TreePop();
     }
 

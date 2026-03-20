@@ -123,7 +123,7 @@ void Octree::intersects_nodes(Vec3 ray_origin, Vec3 ray_direction, std::vector<c
     {
         for (auto& child : (*children_))
         {
-            if (bounds_.intersects_ray(ray_origin, ray_direction))
+            if (child.bounds_.intersects_ray(ray_origin, ray_direction))
             {
                 // a check is done here to avoid having to test intersection on leaf nodes twice.
                 if (child.is_leaf())
