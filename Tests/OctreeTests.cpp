@@ -217,3 +217,17 @@ TEST(OctreeTest, RayDoesNotIntersectPoint)
     EXPECT_NO_THROW(intersections = octree.intersects_points(ray_position, ray_direction));
     EXPECT_LE(intersections.size(), 0);
 }
+
+TEST(OctreeTest, IterateOctree)
+{
+    Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
+    Octree octree{ bounds, 5, 5 };
+
+    Vec3 point = { 10.0f, 10.0f, 10.0f };
+    octree.add(point);
+
+    for (auto node : octree)
+    {
+        node->get_bounds();
+    }
+}

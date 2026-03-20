@@ -216,6 +216,7 @@ void Octree::subdivide()
             Bounds b;
             b.set_extents(child_min, child_max);
             children[i] = Octree{ b, min_capacity_, new_depth };
+            children[i].depth_level_ = depth_level_ + 1;
         }
 
 
