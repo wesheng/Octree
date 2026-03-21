@@ -3,7 +3,7 @@
 // Note that this specific subproject is a minimal implementation to showcase the Octree.
 // Further expansion would include use of file loaders, multiple header/source files, and proper management of gl functions and errors.
 
-#include "App.h"
+#include <iostream>
 #include <array>
 #include <Octree.h>
 #include <random>
@@ -153,9 +153,6 @@ glm::vec3 line[] = {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
 GLuint vbo_line, vao_line;
 
 // euler angles in radians
-glm::vec3 global_rotation{ 0.0f };
-float global_scale = 1.0f;
-glm::mat4 global_transform;
 glm::mat4 view = glm::lookAt(glm::vec3{ 0.0f, 0.0f, 75.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
 glm::mat4 projection = glm::perspective(45.0f, (float)width / (float)height, 0.001f, 1000.0f);
 
@@ -272,7 +269,7 @@ void draw_cube(glm::vec3 position, glm::vec3 scale, glm::vec3 color = glm::vec3{
 {
     glm::mat4 t = glm::translate(glm::mat4{ 1.0f }, position);
     glm::mat4 s = glm::scale(glm::mat4{ 1.0f }, scale);
-    glm::mat4 m = global_transform * t * s;
+    glm::mat4 m = t * s;
 
     glm::mat4 mvp = projection * view * m;
 
@@ -305,20 +302,12 @@ void draw_octant(const Octree<int>* octant, const glm::vec3* color = nullptr)
     }
 
     draw_cube(pos, size, draw_color);
-
-    //glBindProgramPipeline(p_cube);
-    //glPointSize(1.0f);
-
-    //glLineWidth(1.0f);
-    //glBindVertexArray(vao_cube);
-    //glDrawElements(GL_LINES, sizeof(cube_indices) / sizeof(unsigned), GL_UNSIGNED_INT, 0);
-    //glBindProgramPipeline(0);
 }
 
 void draw_points()
 {
     glm::mat4 t = glm::translate(glm::mat4{ 1.0f }, glm::vec3{0.0f});
-    glm::mat4 mvp = projection * view * global_transform * t;
+    glm::mat4 mvp = projection * view * t;
 
     glBindProgramPipeline(pipeline_dot);
 
@@ -339,7 +328,7 @@ void draw_ray()
     glm::mat4 t = glm::translate(glm::mat4{ 1.0f }, ray_origin);
     glm::mat4 r = glm::mat4_cast(ray_rotation);
     glm::mat4 s = glm::scale(glm::mat4{ 1.0f }, glm::vec3{ 1000.0f });
-    glm::mat4 mvp = projection * view * global_transform * t * r * s;
+    glm::mat4 mvp = projection * view * t * r * s;
 
     glm::vec3 color{ 1.0f, 0.0f, 0.0f };
     glBindProgramPipeline(pipeline_line);
@@ -451,9 +440,6 @@ void update_camera(GLFWwindow* window, float dt)
 
 void run()
 {
-    glm::mat4 g_r = glm::mat4_cast(glm::quat{glm::radians(global_rotation) });
-    glm::mat4 g_s = glm::scale(glm::mat4{ 1.0f }, glm::vec3{ global_scale });
-    global_transform = g_r * g_s;
 
     for (int i = 0; i < current_octree_settings.point_count; i++)
     {
@@ -491,8 +477,6 @@ void run()
     ImGui::End();
 
     ImGui::Begin("Settings");
-    ImGui::SliderFloat3("Rotation", glm::value_ptr(global_rotation), 0.0f, 360.0f);
-    ImGui::SliderFloat("Scale", &global_scale, 0.25f, 4.0f);
 
     if (ImGui::TreeNode("Octree"))
     {
