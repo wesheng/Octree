@@ -1,5 +1,5 @@
 
-add_library(Octree STATIC "Octree.h" "Octree.cpp" "Vec3.h" "Bounds.h" "MathUtility.h")
+add_library(Octree STATIC "Octree.h" "Octree.cpp" "Vec3.h" "Bounds.h" "MathUtility.h" "MathUtility.cpp")
 
 set_property(TARGET Octree PROPERTY CXX_STANDARD 20)
 

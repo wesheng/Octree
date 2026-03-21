@@ -132,7 +132,7 @@ unsigned cube_indices[] = {
 };
 GLuint vbo_cube, vio_cube, vao_cube;
 
-const int POINT_COUNT = 500;
+const int POINT_COUNT = 1000;
 glm::vec3 zero { 0.0f }; // used for point origin before instancing
 struct Points {
     glm::vec3 Position;
@@ -156,7 +156,8 @@ glm::mat4 projection = glm::perspective(45.0f, (float)width / (float)height, 0.0
 glm::vec3 ray_origin = glm::vec3{ 10.0f, 10.0f, -10.0f };
 glm::vec3 ray_rotation_euler = glm::vec3{ 15.0f, 330.0f, 0.0f };
 glm::quat ray_rotation{ glm::vec3{0.0f} };
-float ray_tolerance = 0.001f;
+float ray_tolerance = 1.0f;
+int ray_nearest = 20;
 
 void setup_gl()
 {
@@ -322,7 +323,7 @@ void draw_ray()
     glm::vec3 color{ 1.0f, 0.0f, 0.0f };
     glBindProgramPipeline(pipeline_line);
 
-    glLineWidth(2.0f);
+    glLineWidth(1.0f);
     glBindVertexArray(vao_line);
 
     glProgramUniformMatrix4fv(v_line_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
@@ -341,6 +342,13 @@ void handle_raycast()
 
     auto nodes = octree.intersects_nodes(origin, direction);
     glm::vec3 color = glm::vec3{ 1.0f, 0.4f, 0.4f };
+
+    auto nearest_points = octree.nearest(origin, ray_nearest);
+    for (auto point : nearest_points)
+    {
+        points[point.second].Color = glm::vec3{ 0.0f, 0.0f, 1.0f };
+    }
+
     for (auto node : nodes)
     {
         draw_octant(node, &color);
@@ -350,11 +358,13 @@ void handle_raycast()
         {
             if (MathUtility::ray_point_intersects(origin, direction, point.first, ray_tolerance))
             {
-                points[point.second].Color = glm::vec3{ 1.0f, 0.3f, 0.3f };
+                points[point.second].Color = glm::vec3{ 0.0f, 1.0f, 0.0f };
             }
 
         }
     }
+
+
 }
 
 void run()
@@ -392,6 +402,7 @@ void run()
         ImGui::InputFloat3("Origin", glm::value_ptr(ray_origin));
         ImGui::SliderFloat3("Rotation", glm::value_ptr(ray_rotation_euler), 0.0f, 360.0f);
         ImGui::InputFloat("Cast Tolerance", &ray_tolerance);
+        ImGui::SliderInt("Num Nearest Points", &ray_nearest, 0, 1000);
         ImGui::TreePop();
     }
 
