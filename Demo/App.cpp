@@ -89,17 +89,21 @@ const char * frag_line_shader = "#version 450\n"
 
 const char* vert_point_shader = "#version 450\n"
 "layout (location = 0) uniform mat4 uMVP;\n"
+"layout (location = 1) uniform vec3 uCameraPos;\n"
 "layout (location = 0) in vec3 vPos;\n"
 "layout (location = 1) in vec3 iPos;\n"
 "layout (location = 2) in vec3 iColor;\n"
 "out gl_PerVertex {\n"
 "   vec4 gl_Position;\n"
+"   float gl_PointSize;\n"
 "};\n"
 "out vec3 fColor;\n"
 "void main()\n"
 "{\n"
 "   fColor = iColor;\n"
-"   gl_Position = uMVP * vec4(vPos + iPos, 1.0);\n"
+"   float dst = distance(uCameraPos, iPos) / 2;"
+"   gl_PointSize = clamp(20 - dst, 2, 10);"
+"   gl_Position = uMVP * vec4(iPos, 1.0);\n"
 "}";
 
 const char * frag_point_shader = "#version 450\n"
@@ -111,9 +115,14 @@ const char * frag_point_shader = "#version 450\n"
 "}";
 
 int width = 800, height = 600;
-float octree_size = 50.0f;
-Bounds octree_bounds{ {0.0f, 0.0f, 0.0f}, {octree_size, octree_size, octree_size} };
-Octree<int> octree{ octree_bounds };
+
+struct OctreeSettings
+{
+    float size = 50.0f;
+    int max_depth = 5; 
+    int point_count = 500;
+} current_octree_settings, edit_octree_settings;
+Octree<int> octree;
 
 GLuint pipeline_line, pipeline_dot;
 GLuint v_line_shader, f_line_shader, v_dot_shader, f_dot_shader;
@@ -132,16 +141,13 @@ unsigned cube_indices[] = {
 };
 GLuint vbo_cube, vio_cube, vao_cube;
 
-const int POINT_COUNT = 1000;
+const int MAX_POINT_COUNT = 10000;
 glm::vec3 zero { 0.0f }; // used for point origin before instancing
 struct Points {
     glm::vec3 Position;
     glm::vec3 Color;
-} points[POINT_COUNT];
-//glm::vec3 points[POINT_COUNT] = {};
-//glm::vec3 points_color[POINT_COUNT];
+} points[MAX_POINT_COUNT];
 GLuint vbo_point, vbo_instance_points, vao_points;
-
 
 glm::vec3 line[] = {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
 GLuint vbo_line, vao_line;
@@ -150,7 +156,7 @@ GLuint vbo_line, vao_line;
 glm::vec3 global_rotation{ 0.0f };
 float global_scale = 1.0f;
 glm::mat4 global_transform;
-glm::mat4 view = glm::lookAt(glm::vec3{ 0.0f, 0.0f, -75.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
+glm::mat4 view = glm::lookAt(glm::vec3{ 0.0f, 0.0f, 75.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
 glm::mat4 projection = glm::perspective(45.0f, (float)width / (float)height, 0.001f, 1000.0f);
 
 glm::vec3 ray_origin = glm::vec3{ 10.0f, 10.0f, -10.0f };
@@ -159,10 +165,23 @@ glm::quat ray_rotation{ glm::vec3{0.0f} };
 float ray_tolerance = 1.0f;
 int ray_nearest = 20;
 
+glm::vec3 camera_pos = { 0.0f, 0.0f, -75.0f };
+glm::vec3 camera_rotation = { 0.0f, 0.0f, 0.0f };
+glm::quat camera_quat;
+float movement_speed = 50.0f;
+glm::vec2 camera_rotation_speed{ 10.0f };
+glm::vec2 prev_mouse_pos;
+bool esc_down, esc_was_down;
+bool can_look = true;
+float prev_time = 0.0f;
+bool ray_follows_camera = false;
+
 void setup_gl()
 {
-    glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(message_callback, nullptr);
+    //glEnable(GL_DEBUG_OUTPUT);
+    //glDebugMessageCallback(message_callback, nullptr);
+
+    glEnable(GL_PROGRAM_POINT_SIZE);
 
     glViewport(0, 0, width, height);
    
@@ -231,19 +250,22 @@ void setup_gl()
 
 }
 
-void setup_octree()
+void setup_octree(OctreeSettings settings)
 {
     std::random_device rand_device;
     std::default_random_engine rand_engine { rand_device()};
-    std::uniform_real_distribution<float> rand_dist{ -octree_size / 2.0f, octree_size / 2.0f };
+    std::uniform_real_distribution<float> rand_dist{ -settings.size / 2.0f, settings.size / 2.0f };
 
-    for (int i = 0; i < POINT_COUNT; i++)
+    Bounds bounds { {0.0f, 0.0f, 0.0f}, {settings.size, settings.size, settings.size} };
+    octree = Octree<int>{ bounds };
+    for (int i = 0; i < settings.point_count; i++)
     {
         points[i].Position = glm::vec3{ rand_dist(rand_engine), rand_dist(rand_engine), rand_dist(rand_engine) };
         points[i].Color = glm::vec3{ 1.0f };
         octree.add(toVec3(points[i].Position), i);
     }
-    std::cout << "Generated " << POINT_COUNT << " points." << std::endl;
+    current_octree_settings = settings;
+    std::cout << "Generated " << settings.size << " points." << std::endl;
 }
 
 void draw_cube(glm::vec3 position, glm::vec3 scale, glm::vec3 color = glm::vec3{1.0f})
@@ -302,12 +324,12 @@ void draw_points()
 
     glNamedBufferSubData(vbo_instance_points, 0, sizeof(points), points);
 
-    glPointSize(2.0f);
     glBindVertexArray(vao_points);
 
     glProgramUniformMatrix4fv(v_dot_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
+    glProgramUniform3fv(v_dot_shader, 1, 1, glm::value_ptr(camera_pos));
     // glProgramUniform3fv(f_line_shader, 0, 1, glm::value_ptr(color));
-    glDrawArraysInstanced(GL_POINTS, 0, 1, POINT_COUNT);
+    glDrawArraysInstanced(GL_POINTS, 0, 1, current_octree_settings.point_count);
 
     glBindProgramPipeline(0);
 }
@@ -315,7 +337,6 @@ void draw_points()
 void draw_ray()
 {
     glm::mat4 t = glm::translate(glm::mat4{ 1.0f }, ray_origin);
-    ray_rotation = glm::quat{ glm::radians(ray_rotation_euler) };
     glm::mat4 r = glm::mat4_cast(ray_rotation);
     glm::mat4 s = glm::scale(glm::mat4{ 1.0f }, glm::vec3{ 1000.0f });
     glm::mat4 mvp = projection * view * global_transform * t * r * s;
@@ -351,8 +372,6 @@ void handle_raycast()
 
     for (auto node : nodes)
     {
-        draw_octant(node, &color);
-        // need to be able to identify which points are which...
         auto node_points = node->get_points();
         for (std::pair<Vec3, int> point : node_points)
         {
@@ -362,21 +381,87 @@ void handle_raycast()
             }
 
         }
+
+        draw_octant(node, &color);
     }
 
 
 }
 
+void update_camera(GLFWwindow* window, float dt)
+{
+    bool esc_down_this_frame = false;
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    {
+        if (!esc_was_down)
+        {
+            can_look = !can_look;
+        }
+        esc_was_down = true;
+    }
+    else
+    {
+        esc_was_down = false;
+    }
+
+    double mouse_x, mouse_y;
+    glfwGetCursorPos(window, &mouse_x, &mouse_y);
+    glm::vec2 mouse_pos = glm::vec2{ mouse_x, mouse_y };
+    glm::vec2 mouse_dt = mouse_pos - prev_mouse_pos;
+    prev_mouse_pos = mouse_pos;
+
+    if (can_look)
+    {
+        glm::vec2 mouse_movement = mouse_dt * camera_rotation_speed * dt;
+        camera_rotation.x += mouse_movement.y;
+        camera_rotation.x = glm::clamp(camera_rotation.x, -89.99f, 89.99f);
+        camera_rotation.y -= mouse_movement.x;
+    }
+
+    camera_quat = glm::quat{ glm::radians(camera_rotation) };
+
+    glm::vec3 movement{ 0.0f };
+    glm::vec3 rotation = camera_rotation;
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+    {
+        movement.z += movement_speed;
+    }
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+    {
+        movement.z -= movement_speed;
+    }
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+    {
+        movement.x += movement_speed;
+    }
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+    {
+        movement.x -= movement_speed;
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+    {
+        movement.y += movement_speed;
+    }
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+    {
+        movement.y -= movement_speed;
+    }
+    camera_pos += camera_quat * movement * dt;
+}
+
 void run()
 {
-    glm::mat4 g_r = glm::mat4_cast(glm::quat{ glm::radians(global_rotation) });
+    glm::mat4 g_r = glm::mat4_cast(glm::quat{glm::radians(global_rotation) });
     glm::mat4 g_s = glm::scale(glm::mat4{ 1.0f }, glm::vec3{ global_scale });
     global_transform = g_r * g_s;
 
-    for (int i = 0; i < POINT_COUNT; i++)
+    for (int i = 0; i < current_octree_settings.point_count; i++)
     {
         points[i].Color = glm::vec3{ 1.0f };
     }
+    
+    glm::vec3 look_dir = camera_quat * glm::vec3{ 0.0f, 0.0f, 1.0f };
+    view = glm::lookAt(camera_pos, camera_pos + look_dir, glm::vec3{ 0.0f, 1.0f, 0.0f });
 
     for (auto octant : octree)
     {
@@ -385,24 +470,54 @@ void run()
     handle_raycast();
 
     draw_points();
-    draw_ray();
 
+    ray_rotation = glm::quat{ glm::radians(ray_rotation_euler) };
+    if (ray_follows_camera)
+    {
+        ray_origin = camera_pos;
+        ray_rotation_euler = camera_rotation;
+    }
+    else
+    {
+        draw_ray();
+    }
 
     ImGui::Begin("Instructions");
-    ImGui::Text("Intersected nodes and points are red\n");
-    ImGui::Text("Points near ray origin are blue");
+    ImGui::Text("WASD / LShift / Space - Move");
+    ImGui::Text("Esc - Lock/Unlock Camera Rotation (Look)");
+    ImGui::Text("Intersected nodes - red");
+    ImGui::Text("Intersected points - green");
+    ImGui::Text("Points near ray origin - blue");
     ImGui::End();
 
     ImGui::Begin("Settings");
     ImGui::SliderFloat3("Rotation", glm::value_ptr(global_rotation), 0.0f, 360.0f);
     ImGui::SliderFloat("Scale", &global_scale, 0.25f, 4.0f);
 
+    if (ImGui::TreeNode("Octree"))
+    {
+        ImGui::SliderInt("Num Points", &edit_octree_settings.point_count, 0, MAX_POINT_COUNT);
+        if (ImGui::Button("Remake Octree"))
+        {
+            setup_octree(edit_octree_settings);
+        }
+        ImGui::TreePop();
+    }
+
     if (ImGui::TreeNode("Ray"))
     {
         ImGui::InputFloat3("Origin", glm::value_ptr(ray_origin));
         ImGui::SliderFloat3("Rotation", glm::value_ptr(ray_rotation_euler), 0.0f, 360.0f);
+        if (ImGui::Button("Orient Ray to Camera"))
+        {
+            ray_origin = camera_pos;
+            ray_rotation_euler = camera_rotation;
+        }
+
+        ImGui::Checkbox("Lock Ray to Camera", &ray_follows_camera);
+
         ImGui::InputFloat("Cast Tolerance", &ray_tolerance);
-        ImGui::SliderInt("Num Nearest Points", &ray_nearest, 0, 1000);
+        ImGui::SliderInt("Num Nearest Points", &ray_nearest, 0, edit_octree_settings.point_count);
         ImGui::TreePop();
     }
 
@@ -416,30 +531,8 @@ void unload()
 
 }
 
-
 int main()
 {
-    //std::random_device rand_device;
-    //std::default_random_engine rand_engine { rand_device()};
-    //std::uniform_real_distribution<float> rand_dist{ -50.0f, 50.0f };
-    //
-    //std::array<Vec3, 5000> points;
-    //std::uniform_int_distribution<> rand_int { 0, points.size() - 1};
-
-    //Bounds b{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
-    //Octree octree{ b, 10, 5 };
-    //for (int i = 0; i < points.size(); i++)
-    //{
-    //    points[i] = Vec3{ rand_dist(rand_engine), rand_dist(rand_engine), rand_dist(rand_engine) };
-    //    octree.add(points[i]);
-    //}
-    //std::cout << "Generated " << points.size() << " points." << std::endl;
-
-    //std::cout << static_cast<std::string>(octree) << std::endl;
-
-    //bool has_point = octree.has(points[rand_int(rand_engine)]);
-    //std::cout << ((has_point) ? "Found point" : "Does not contain point") << std::endl;
-
     if (!glfwInit())
         return -1;
 
@@ -465,12 +558,16 @@ int main()
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init();
     
-    setup_octree();
+    setup_octree(current_octree_settings);
     setup_gl();
 
-
+    prev_time = glfwGetTime();
     while (!glfwWindowShouldClose(window))
     {
+        float current_time = glfwGetTime();
+        float dt = current_time - prev_time;
+        prev_time = current_time;
+
         glClearColor(0.3f, 0.5f, 0.5f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -478,6 +575,7 @@ int main()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        update_camera(window, dt);
         run();
 
         ImGui::Render();
