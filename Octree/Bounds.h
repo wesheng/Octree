@@ -1,6 +1,6 @@
 #pragma once
 #include "Vec3.h"
-#include "Mathf.h"
+#include "MathUtility.h"
 
 struct Bounds
 {
@@ -39,28 +39,11 @@ struct Bounds
     inline bool intersects_sphere(Vec3 center, float radius)
     {
         // sphere - aabb test
-        Vec3 min = get_min();
-        Vec3 max = get_max();
-        Vec3 clamped = {
-            Mathf::clamp(center.x, min.x, max.x),
-            Mathf::clamp(center.y, min.y, max.y),
-            Mathf::clamp(center.z, min.z, max.z)
-        };
-        float sqr_distance = Vec3::sqr_distance(clamped, center);
-        return sqr_distance <= radius * radius;
+        return MathUtility::aabb_sphere_intersects(get_min(), get_max(), center, radius);
     }
+
     inline bool intersects_ray(Vec3 origin, Vec3 direction)
     {
-        // ray - aabb test
-        // use slab method
-        // https://en.wikipedia.org/wiki/Slab_method
-
-        Vec3 low = get_min();
-        Vec3 high = get_max();
-        Vec3 t0 = (low - origin) / direction;
-        Vec3 t1 = (high - origin) / direction;
-        float t_near = Vec3::min(t0, t1).max_component();
-        float t_far = Vec3::max(t0, t1).min_component();
-        return t_near <= t_far && t_far >= 0; // t_far >= 0 to ensure ray isn't facing away from aabb.
+        return MathUtility::aabb_ray_intersects(get_min(), get_max(), origin, direction);
     }
 };

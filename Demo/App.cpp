@@ -68,7 +68,7 @@ void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GL
     std::cout << src_str << ", " << type_str << ", " << severity_str << ", " << id << ": " << message << '\n';
 }
 
-const char * vert_shader = "#version 450\n"
+const char * vert_line_shader = "#version 450\n"
 "layout (location = 0) uniform mat4 uMVP;\n"
 "layout (location = 0) in vec3 vPos;\n"
 "out gl_PerVertex {\n"
@@ -87,22 +87,36 @@ const char * frag_line_shader = "#version 450\n"
 "   oColor = vec4(uColor, 1.0);\n"
 "}";
 
+const char* vert_point_shader = "#version 450\n"
+"layout (location = 0) uniform mat4 uMVP;\n"
+"layout (location = 0) in vec3 vPos;\n"
+"layout (location = 1) in vec3 iPos;\n"
+"layout (location = 2) in vec3 iColor;\n"
+"out gl_PerVertex {\n"
+"   vec4 gl_Position;\n"
+"};\n"
+"out vec3 fColor;\n"
+"void main()\n"
+"{\n"
+"   fColor = iColor;\n"
+"   gl_Position = uMVP * vec4(vPos + iPos, 1.0);\n"
+"}";
+
 const char * frag_point_shader = "#version 450\n"
-"layout (location = 0) uniform vec3 uColor = vec3(1.0);"
+"in vec3 fColor;\n"
 "out vec4 oColor;\n"
 "void main()\n"
 "{\n"
-"   oColor = vec4(uColor, 1.0);\n"
+"   oColor = vec4(fColor, 1.0);\n"
 "}";
 
 int width = 800, height = 600;
 float octree_size = 50.0f;
 Bounds octree_bounds{ {0.0f, 0.0f, 0.0f}, {octree_size, octree_size, octree_size} };
-Octree octree{ octree_bounds };
+Octree<int> octree{ octree_bounds };
 
-GLuint p_cube;
-
-GLuint v_shader, f_cube_shader, f_dot_shader;
+GLuint pipeline_line, pipeline_dot;
+GLuint v_line_shader, f_line_shader, v_dot_shader, f_dot_shader;
 
 glm::vec3 cube_vertices[] = {
     { -0.5f, 0.5f, 0.5f }, { 0.5f, 0.5f, 0.5f},
@@ -119,8 +133,15 @@ unsigned cube_indices[] = {
 GLuint vbo_cube, vio_cube, vao_cube;
 
 const int POINT_COUNT = 500;
-glm::vec3 points[POINT_COUNT] = {};
-GLuint vbo_points, vao_points;
+glm::vec3 zero { 0.0f }; // used for point origin before instancing
+struct Points {
+    glm::vec3 Position;
+    glm::vec3 Color;
+} points[POINT_COUNT];
+//glm::vec3 points[POINT_COUNT] = {};
+//glm::vec3 points_color[POINT_COUNT];
+GLuint vbo_point, vbo_instance_points, vao_points;
+
 
 glm::vec3 line[] = {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
 GLuint vbo_line, vao_line;
@@ -144,13 +165,20 @@ void setup_gl()
 
     glViewport(0, 0, width, height);
    
-    v_shader = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &vert_shader);
-    f_cube_shader = glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &frag_line_shader);
+    // 
+    v_line_shader = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &vert_line_shader);
+    f_line_shader = glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &frag_line_shader);
+    glCreateProgramPipelines(1, &pipeline_line);
+    glUseProgramStages(pipeline_line, GL_VERTEX_SHADER_BIT, v_line_shader);
+    glUseProgramStages(pipeline_line, GL_FRAGMENT_SHADER_BIT, f_line_shader);
 
-    glCreateProgramPipelines(1, &p_cube);
-    glUseProgramStages(p_cube, GL_VERTEX_SHADER_BIT, v_shader);
-    glUseProgramStages(p_cube, GL_FRAGMENT_SHADER_BIT, f_cube_shader);
-    // glBindProgramPipeline(p_cube);
+    v_dot_shader = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &vert_point_shader);
+    f_dot_shader = glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &frag_point_shader);
+    glCreateProgramPipelines(1, &pipeline_dot);
+    glUseProgramStages(pipeline_dot, GL_VERTEX_SHADER_BIT, v_dot_shader);
+    glUseProgramStages(pipeline_dot, GL_FRAGMENT_SHADER_BIT, f_dot_shader);
+
+    //
 
     glCreateBuffers(1, &vbo_cube);
     glNamedBufferStorage(vbo_cube, sizeof(cube_vertices), cube_vertices, GL_DYNAMIC_STORAGE_BIT);
@@ -165,15 +193,6 @@ void setup_gl()
     glVertexArrayAttribFormat(vao_cube, 0, 3, GL_FLOAT, GL_FALSE, 0);
     glVertexArrayAttribBinding(vao_cube, 0, 0);
 
-    glCreateBuffers(1, &vbo_points);
-    glNamedBufferStorage(vbo_points, sizeof(points), points, GL_DYNAMIC_STORAGE_BIT);
-
-    glCreateVertexArrays(1, &vao_points);
-    glVertexArrayVertexBuffer(vao_points, 0, vbo_points, 0, sizeof(glm::vec3));
-    glEnableVertexArrayAttrib(vao_points, 0);
-    glVertexArrayAttribFormat(vao_points, 0, 3, GL_FLOAT, GL_FALSE, 0);
-    glVertexArrayAttribBinding(vao_points, 0, 0);
-
     glCreateBuffers(1, &vbo_line);
     glNamedBufferStorage(vbo_line, sizeof(line), line, GL_DYNAMIC_STORAGE_BIT);
 
@@ -182,6 +201,32 @@ void setup_gl()
     glEnableVertexArrayAttrib(vao_line, 0);
     glVertexArrayAttribFormat(vao_line, 0, 3, GL_FLOAT, GL_FALSE, 0);
     glVertexArrayAttribBinding(vao_line, 0, 0);
+
+    // 
+
+    glCreateBuffers(1, &vbo_point);
+    glNamedBufferStorage(vbo_point, sizeof(zero), &zero, GL_DYNAMIC_STORAGE_BIT);
+
+    glCreateBuffers(1, &vbo_instance_points);
+    glNamedBufferStorage(vbo_instance_points, sizeof(points), points, GL_DYNAMIC_STORAGE_BIT);
+
+    glCreateVertexArrays(1, &vao_points);
+
+    glVertexArrayVertexBuffer(vao_points, 0, vbo_point, 0, sizeof(glm::vec3));
+    glEnableVertexArrayAttrib(vao_points, 0);
+    glVertexArrayAttribFormat(vao_points, 0, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribBinding(vao_points, 0, 0);
+
+    glVertexArrayVertexBuffer(vao_points, 1, vbo_instance_points, 0, sizeof(Points));
+    glVertexArrayBindingDivisor(vao_points, 1, 1);
+
+    glEnableVertexArrayAttrib(vao_points, 1);
+    glVertexArrayAttribFormat(vao_points, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Points, Position));
+    glVertexArrayAttribBinding(vao_points, 1, 1);
+
+    glEnableVertexArrayAttrib(vao_points, 2);
+    glVertexArrayAttribFormat(vao_points, 2, 3, GL_FLOAT, GL_FALSE, offsetof(Points, Color));
+    glVertexArrayAttribBinding(vao_points, 2, 1);
 
 }
 
@@ -193,8 +238,9 @@ void setup_octree()
 
     for (int i = 0; i < POINT_COUNT; i++)
     {
-        points[i] = glm::vec3{ rand_dist(rand_engine), rand_dist(rand_engine), rand_dist(rand_engine) };
-        octree.add(toVec3(points[i]));
+        points[i].Position = glm::vec3{ rand_dist(rand_engine), rand_dist(rand_engine), rand_dist(rand_engine) };
+        points[i].Color = glm::vec3{ 1.0f };
+        octree.add(toVec3(points[i].Position), i);
     }
     std::cout << "Generated " << POINT_COUNT << " points." << std::endl;
 }
@@ -207,18 +253,18 @@ void draw_cube(glm::vec3 position, glm::vec3 scale, glm::vec3 color = glm::vec3{
 
     glm::mat4 mvp = projection * view * m;
 
-    glBindProgramPipeline(p_cube);
+    glBindProgramPipeline(pipeline_line);
     glLineWidth(1.0f);
     glBindVertexArray(vao_cube);
 
-    glProgramUniformMatrix4fv(v_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
-    glProgramUniform3fv(f_cube_shader, 0, 1, glm::value_ptr(color));
+    glProgramUniformMatrix4fv(v_line_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
+    glProgramUniform3fv(f_line_shader, 0, 1, glm::value_ptr(color));
     glDrawElements(GL_LINES, sizeof(cube_indices) / sizeof(unsigned), GL_UNSIGNED_INT, 0);
 
     glBindProgramPipeline(0);
 }
 
-void draw_octant(const Octree* octant, const glm::vec3* color = nullptr)
+void draw_octant(const Octree<int>* octant, const glm::vec3* color = nullptr)
 {
     Bounds bounds = octant->get_bounds();
     glm::vec3 pos = toGLMVec3(bounds.center);
@@ -251,15 +297,16 @@ void draw_points()
     glm::mat4 t = glm::translate(glm::mat4{ 1.0f }, glm::vec3{0.0f});
     glm::mat4 mvp = projection * view * global_transform * t;
 
-    glm::vec3 color{ 1.0f};
-    glBindProgramPipeline(p_cube);
+    glBindProgramPipeline(pipeline_dot);
+
+    glNamedBufferSubData(vbo_instance_points, 0, sizeof(points), points);
 
     glPointSize(2.0f);
     glBindVertexArray(vao_points);
 
-    glProgramUniformMatrix4fv(v_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
-    glProgramUniform3fv(f_cube_shader, 0, 1, glm::value_ptr(color));
-    glDrawArrays(GL_POINTS, 0, POINT_COUNT);
+    glProgramUniformMatrix4fv(v_dot_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
+    // glProgramUniform3fv(f_line_shader, 0, 1, glm::value_ptr(color));
+    glDrawArraysInstanced(GL_POINTS, 0, 1, POINT_COUNT);
 
     glBindProgramPipeline(0);
 }
@@ -273,13 +320,13 @@ void draw_ray()
     glm::mat4 mvp = projection * view * global_transform * t * r * s;
 
     glm::vec3 color{ 1.0f, 0.0f, 0.0f };
-    glBindProgramPipeline(p_cube);
+    glBindProgramPipeline(pipeline_line);
 
     glLineWidth(2.0f);
     glBindVertexArray(vao_line);
 
-    glProgramUniformMatrix4fv(v_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
-    glProgramUniform3fv(f_cube_shader, 0, 1, glm::value_ptr(color));
+    glProgramUniformMatrix4fv(v_line_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
+    glProgramUniform3fv(f_line_shader, 0, 1, glm::value_ptr(color));
     glDrawArrays(GL_LINES, 0, 2);
 
     glBindProgramPipeline(0);
@@ -288,11 +335,25 @@ void draw_ray()
 void handle_raycast()
 {
     glm::vec3 rot_vec = ray_rotation * glm::vec3{ 0.0f, 0.0f, 1.0f };
-    auto nodes = octree.intersects_nodes(toVec3(ray_origin), toVec3(rot_vec));
+
+    Vec3 origin = toVec3(ray_origin);
+    Vec3 direction = toVec3(rot_vec);
+
+    auto nodes = octree.intersects_nodes(origin, direction);
     glm::vec3 color = glm::vec3{ 1.0f, 0.4f, 0.4f };
     for (auto node : nodes)
     {
         draw_octant(node, &color);
+        // need to be able to identify which points are which...
+        auto node_points = node->get_points();
+        for (std::pair<Vec3, int> point : node_points)
+        {
+            if (MathUtility::ray_point_intersects(origin, direction, point.first, ray_tolerance))
+            {
+                points[point.second].Color = glm::vec3{ 1.0f, 0.3f, 0.3f };
+            }
+
+        }
     }
 }
 
@@ -302,13 +363,25 @@ void run()
     glm::mat4 g_s = glm::scale(glm::mat4{ 1.0f }, glm::vec3{ global_scale });
     global_transform = g_r * g_s;
 
+    for (int i = 0; i < POINT_COUNT; i++)
+    {
+        points[i].Color = glm::vec3{ 1.0f };
+    }
+
     for (auto octant : octree)
     {
         draw_octant(octant);
     }
+    handle_raycast();
+
     draw_points();
     draw_ray();
-    handle_raycast();
+
+
+    ImGui::Begin("Instructions");
+    ImGui::Text("Intersected nodes and points are red\n");
+    ImGui::Text("Points near ray origin are blue");
+    ImGui::End();
 
     ImGui::Begin("Settings");
     ImGui::SliderFloat3("Rotation", glm::value_ptr(global_rotation), 0.0f, 360.0f);

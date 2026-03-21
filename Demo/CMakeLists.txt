@@ -53,5 +53,5 @@ target_sources(imgui INTERFACE
 target_include_directories(imgui INTERFACE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
 
 
-target_link_libraries(Demo Octree Utility glfw glm::glm imgui glad_gl)
+target_link_libraries(Demo Octree glfw glm::glm imgui glad_gl)
 

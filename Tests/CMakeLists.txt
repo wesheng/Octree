@@ -9,7 +9,7 @@ set(gtest_force_shared_crt ON CACHE BOOL "" CMAKE_FASTBUILD_FORCE_RESPONSE_FILE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(OctreeTests "OctreeTests.cpp")
-target_link_libraries(OctreeTests Octree Utility GTest::gtest_main)
+target_link_libraries(OctreeTests Octree GTest::gtest_main)
 
 enable_testing()
 include(GoogleTest)
