@@ -53,8 +53,7 @@ const char* vert_point_shader = "#version 450\n"
 "layout (location = 0) uniform mat4 uMVP;\n"
 "layout (location = 1) uniform vec3 uCameraPos;\n"
 "layout (location = 0) in vec3 vPos;\n"
-"layout (location = 1) in vec3 iPos;\n"
-"layout (location = 2) in vec3 iColor;\n"
+"layout (location = 1) in vec3 vColor;\n"
 "out gl_PerVertex {\n"
 "   vec4 gl_Position;\n"
 "   float gl_PointSize;\n"
@@ -62,10 +61,10 @@ const char* vert_point_shader = "#version 450\n"
 "out vec3 fColor;\n"
 "void main()\n"
 "{\n"
-"   fColor = iColor;\n"
-"   float dst = distance(uCameraPos, iPos) / 2;"
+"   fColor = vColor;\n"
+"   float dst = distance(uCameraPos, vPos) / 2;"
 "   gl_PointSize = clamp(20 - dst, 2, 10);"
-"   gl_Position = uMVP * vec4(iPos, 1.0);\n"
+"   gl_Position = uMVP * vec4(vPos, 1.0);\n"
 "}";
 
 const char * frag_point_shader = "#version 450\n"
@@ -104,12 +103,12 @@ unsigned cube_indices[] = {
 GLuint vbo_cube, vio_cube, vao_cube;
 
 const int MAX_POINT_COUNT = 10000;
-glm::vec3 zero { 0.0f }; // used for point origin before instancing
+//glm::vec3 zero { 0.0f }; // used for point origin before instancing
 struct Points {
     glm::vec3 Position;
     glm::vec3 Color;
 } points[MAX_POINT_COUNT];
-GLuint vbo_point, vbo_instance_points, vao_points;
+GLuint vbo_points, vao_points;
 
 glm::vec3 line[] = {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
 GLuint vbo_line, vao_line;
@@ -180,29 +179,21 @@ void setup_gl()
 
     // 
 
-    glCreateBuffers(1, &vbo_point);
-    glNamedBufferStorage(vbo_point, sizeof(zero), &zero, GL_DYNAMIC_STORAGE_BIT);
-
-    glCreateBuffers(1, &vbo_instance_points);
-    glNamedBufferStorage(vbo_instance_points, sizeof(points), points, GL_DYNAMIC_STORAGE_BIT);
+    glCreateBuffers(1, &vbo_points);
+    glNamedBufferStorage(vbo_points, sizeof(points), points, GL_DYNAMIC_STORAGE_BIT);
 
     glCreateVertexArrays(1, &vao_points);
 
-    glVertexArrayVertexBuffer(vao_points, 0, vbo_point, 0, sizeof(glm::vec3));
+    glVertexArrayVertexBuffer(vao_points, 0, vbo_points, 0, sizeof(Points));
+    glVertexArrayBindingDivisor(vao_points, 0, 1);
+
     glEnableVertexArrayAttrib(vao_points, 0);
-    glVertexArrayAttribFormat(vao_points, 0, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribFormat(vao_points, 0, 3, GL_FLOAT, GL_FALSE, offsetof(Points, Position));
     glVertexArrayAttribBinding(vao_points, 0, 0);
 
-    glVertexArrayVertexBuffer(vao_points, 1, vbo_instance_points, 0, sizeof(Points));
-    glVertexArrayBindingDivisor(vao_points, 1, 1);
-
     glEnableVertexArrayAttrib(vao_points, 1);
-    glVertexArrayAttribFormat(vao_points, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Points, Position));
-    glVertexArrayAttribBinding(vao_points, 1, 1);
-
-    glEnableVertexArrayAttrib(vao_points, 2);
-    glVertexArrayAttribFormat(vao_points, 2, 3, GL_FLOAT, GL_FALSE, offsetof(Points, Color));
-    glVertexArrayAttribBinding(vao_points, 2, 1);
+    glVertexArrayAttribFormat(vao_points, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Points, Color));
+    glVertexArrayAttribBinding(vao_points, 1, 0);
 
 }
 
@@ -270,7 +261,7 @@ void draw_points()
 
     glBindProgramPipeline(pipeline_dot);
 
-    glNamedBufferSubData(vbo_instance_points, 0, sizeof(points), points);
+    glNamedBufferSubData(vbo_points, 0, sizeof(points), points);
 
     glBindVertexArray(vao_points);
 
@@ -327,13 +318,9 @@ void handle_raycast()
             {
                 points[point.second].Color = glm::vec3{ 0.0f, 1.0f, 0.0f };
             }
-
         }
-
         draw_octant(node, &color);
     }
-
-
 }
 
 void update_camera(GLFWwindow* window, float dt)
@@ -399,7 +386,6 @@ void update_camera(GLFWwindow* window, float dt)
 
 void run()
 {
-
     for (int i = 0; i < current_octree_settings.point_count; i++)
     {
         points[i].Color = glm::vec3{ 1.0f };
@@ -463,15 +449,28 @@ void run()
         ImGui::SliderInt("Num Nearest Points", &ray_nearest, 0, edit_octree_settings.point_count);
         ImGui::TreePop();
     }
-
-    // ImGui::InputFloat3("Ray Origin")
     ImGui::End();
-
 }
 
 void unload()
 {
+    glDeleteBuffers(1, &vbo_cube);
+    glDeleteBuffers(1, &vio_cube);
+    glDeleteVertexArrays(1, &vao_cube);
 
+    glDeleteBuffers(1, &vbo_line);
+    glDeleteVertexArrays(1, &vao_line);
+
+    glDeleteVertexArrays(1, &vao_points);
+    glDeleteBuffers(1, &vbo_points);
+
+    glDeleteProgramPipelines(1, &pipeline_line);
+    glDeleteProgramPipelines(1, &pipeline_dot);
+
+    glDeleteShader(v_line_shader);
+    glDeleteShader(f_line_shader);
+    glDeleteShader(v_dot_shader);
+    glDeleteShader(f_dot_shader);
 }
 
 int main()
@@ -523,7 +522,6 @@ int main()
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
 
         glfwSwapBuffers(window);
         glfwPollEvents();
