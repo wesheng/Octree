@@ -4,10 +4,8 @@
 // Further expansion would include use of file loaders, multiple header/source files, and proper management of gl functions and errors.
 
 #include <iostream>
-#include <array>
 #include <Octree.h>
 #include <random>
-#include <string>
 #include <Vec3.h>
 
 #include <glad/gl.h>
@@ -21,6 +19,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/quaternion.hpp>
+
+
+const int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
 
 glm::vec3 toGLMVec3(const Vec3& vec) {
     return { vec.x, vec.y, vec.z };
@@ -75,12 +76,12 @@ const char * frag_point_shader = "#version 450\n"
 "   oColor = vec4(fColor, 1.0);\n"
 "}";
 
-int width = 800, height = 600;
 
 struct OctreeSettings
 {
     float size = 50.0f;
-    int max_depth = 5; 
+    unsigned min_capacity = 10;
+    unsigned max_depth = 5; 
     int point_count = 500;
 } current_octree_settings, edit_octree_settings;
 Octree<int> octree;
@@ -103,7 +104,6 @@ unsigned cube_indices[] = {
 GLuint vbo_cube, vio_cube, vao_cube;
 
 const int MAX_POINT_COUNT = 10000;
-//glm::vec3 zero { 0.0f }; // used for point origin before instancing
 struct Points {
     glm::vec3 Position;
     glm::vec3 Color;
@@ -115,7 +115,7 @@ GLuint vbo_line, vao_line;
 
 // euler angles in radians
 glm::mat4 view = glm::lookAt(glm::vec3{ 0.0f, 0.0f, 75.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
-glm::mat4 projection = glm::perspective(45.0f, (float)width / (float)height, 0.001f, 1000.0f);
+glm::mat4 projection = glm::perspective(45.0f, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.001f, 1000.0f);
 
 glm::vec3 ray_origin = glm::vec3{ 10.0f, 10.0f, -10.0f };
 glm::vec3 ray_rotation_euler = glm::vec3{ 15.0f, 330.0f, 0.0f };
@@ -129,16 +129,13 @@ glm::quat camera_quat;
 float movement_speed = 50.0f;
 glm::vec2 camera_rotation_speed{ 10.0f };
 glm::vec2 prev_mouse_pos;
-bool esc_down, esc_was_down;
-bool can_look = true;
-float prev_time = 0.0f;
 bool ray_follows_camera = false;
 
 void setup_gl()
 {
     glEnable(GL_PROGRAM_POINT_SIZE);
 
-    glViewport(0, 0, width, height);
+    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
    
     // 
     v_line_shader = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &vert_line_shader);
@@ -204,7 +201,7 @@ void setup_octree(OctreeSettings settings)
     std::uniform_real_distribution<float> rand_dist{ -settings.size / 2.0f, settings.size / 2.0f };
 
     Bounds bounds { {0.0f, 0.0f, 0.0f}, {settings.size, settings.size, settings.size} };
-    octree = Octree<int>{ bounds };
+    octree = Octree<int>{ bounds, settings.min_capacity, settings.max_depth };
     for (int i = 0; i < settings.point_count; i++)
     {
         points[i].Position = glm::vec3{ rand_dist(rand_engine), rand_dist(rand_engine), rand_dist(rand_engine) };
@@ -212,7 +209,7 @@ void setup_octree(OctreeSettings settings)
         octree.add(toVec3(points[i].Position), i);
     }
     current_octree_settings = settings;
-    std::cout << "Generated " << settings.size << " points." << std::endl;
+    std::cout << "Generated " << settings.point_count << " points." << std::endl;
 }
 
 void draw_cube(glm::vec3 position, glm::vec3 scale, glm::vec3 color = glm::vec3{1.0f})
@@ -267,7 +264,6 @@ void draw_points()
 
     glProgramUniformMatrix4fv(v_dot_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
     glProgramUniform3fv(v_dot_shader, 1, 1, glm::value_ptr(camera_pos));
-    // glProgramUniform3fv(f_line_shader, 0, 1, glm::value_ptr(color));
     glDrawArraysInstanced(GL_POINTS, 0, 1, current_octree_settings.point_count);
 
     glBindProgramPipeline(0);
@@ -325,6 +321,9 @@ void handle_raycast()
 
 void update_camera(GLFWwindow* window, float dt)
 {
+    static bool esc_was_down = false;
+    static bool can_look = true;
+
     bool esc_down_this_frame = false;
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {
@@ -425,6 +424,10 @@ void run()
 
     if (ImGui::TreeNode("Octree"))
     {
+        int depth = edit_octree_settings.max_depth;
+        if (ImGui::SliderInt("Max Depth", &depth, 0, 20))
+            edit_octree_settings.max_depth = depth;
+
         ImGui::SliderInt("Num Points", &edit_octree_settings.point_count, 0, MAX_POINT_COUNT);
         if (ImGui::Button("Remake Octree"))
         {
@@ -483,7 +486,7 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     
-    GLFWwindow* window = glfwCreateWindow(width, height, "Octree Demo", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Octree Demo", nullptr, nullptr);
     if (!window)
     {
         const char* error;
@@ -503,7 +506,7 @@ int main()
     setup_octree(current_octree_settings);
     setup_gl();
 
-    prev_time = glfwGetTime();
+    static float prev_time = glfwGetTime();
     while (!glfwWindowShouldClose(window))
     {
         float current_time = glfwGetTime();

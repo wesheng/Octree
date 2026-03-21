@@ -32,8 +32,6 @@ public:
         using iterator_category = std::forward_iterator_tag;
         using difference_type = std::ptrdiff_t;
         using value_type = Octree<T>;
-        using pointer = const Octree<T>*;
-        using reference = const Octree<T>&;
 
         OctantIterator(Octree<T>* octree)
         { 
@@ -87,7 +85,6 @@ public:
         }
     private:
         std::stack<Octree<T>*> stack_;
-
     };
 
     /**
@@ -303,6 +300,7 @@ private:
             }
         }
     }
+
     void try_insert_point(Vec3 point, T entity)
     {
         points_.push_back({ point, entity });
@@ -311,6 +309,7 @@ private:
             subdivide();
         }
     }
+
     unsigned get_child_index(Vec3 point)
     {
         bool greater_x = point.x > bounds_.center.x;
@@ -319,11 +318,13 @@ private:
 
         return (greater_x << 0) + (greater_y << 1) + (greater_z << 2);
     }
+
     void insert_children(Vec3 point, T entity)
     {
         unsigned index = get_child_index(point);
         (*children_)[index].add(point, entity);
     }
+
     void subdivide()
     {
         if (children_ == nullptr)
@@ -358,7 +359,6 @@ private:
                 children[i].depth_level_ = depth_level_ + 1;
             }
 
-
             for (PointPair point : points_)
             {
                 insert_children(point.first, point.second);
@@ -367,7 +367,8 @@ private:
         }
     }
 
-    inline bool is_leaf() {
+    inline bool is_leaf()
+    {
         return children_ == nullptr;
     }
 
