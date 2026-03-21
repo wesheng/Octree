@@ -1,6 +1,11 @@
 #pragma once
-#include <sstream>
 
+#include <algorithm>
+
+/**
+ * @brief Utility Vector3
+ * @remarks Contains only functions required for Octree calculation.
+ */
 struct Vec3
 {
     float x = 0.0f, y = 0.0f, z = 0.0f;
@@ -81,11 +86,5 @@ struct Vec3
             std::max(a.y, b.y),
             std::max(a.z, b.z)
         };
-    }
-
-    operator std::string() const {
-        std::ostringstream s;
-        s << "(" << x << ", " << y << ", " << z << ")";
-        return s.str();
     }
 };

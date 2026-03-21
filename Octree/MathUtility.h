@@ -2,6 +2,9 @@
 
 #include "Vec3.h"
 
+/**
+ * @brief Math utility, including several intersection tests.
+ */
 class MathUtility
 {
 public:

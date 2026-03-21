@@ -3,8 +3,6 @@
 #include <array>
 #include <memory>
 #include <vector>
-#include <string>
-#include <sstream>
 #include <Bounds.h>
 #include <tuple>
 #include <ranges>
@@ -15,6 +13,7 @@
 
 /**
  * @brief Recursive data structure for storing points within octants in a 3D space.
+ * @tparam T Identifier type (index, pointer, entity id, etc.)
  */
 template<typename T>
 class Octree {
@@ -25,7 +24,7 @@ public:
     // https://stackoverflow.com/questions/72405122/creating-an-iterator-with-c20-concepts-for-custom-container
     // https://stackoverflow.com/questions/6366684/c-implementing-a-custom-iterator-for-binary-trees-long
     /**
-     * @brief Octant iterator that searches depth first
+     * @brief Octant iterator that searches depth first.
      */
     struct OctantIterator
     {
@@ -91,11 +90,26 @@ public:
 
     };
 
+    /**
+     * @brief Creates an empty Octree.
+     */
     Octree() = default;
 
+    /**
+     * @brief Creates a Octree
+     * @param bounds 
+     * @param min_capacity 
+     * @param max_depth 
+     */
     Octree(Bounds bounds, unsigned min_capacity = 10, unsigned max_depth = 5) : bounds_(bounds), min_capacity_(min_capacity), max_depth_(max_depth)
     {}
 
+    /**
+     * @brief Adds a point to the Octree. The point should be within bounds of the Octree.
+     * @param point The position.
+     * @param entity The identifier with the position.
+     * @throws std::exception If the point is not within the Octree bounds.
+     */
     void add(Vec3 point, T entity)
     {
         if (!bounds_.contains(point))
@@ -116,6 +130,11 @@ public:
         num_points_++;
     }
 
+    /**
+     * @brief Checks whether a point exists in the Octree.
+     * @param point The point
+     * @return If the point exists.
+     */
     bool has(Vec3 point)
     {
         if (bounds_.contains(point))
@@ -136,7 +155,13 @@ public:
         return false;
     }
 
-    std::vector<std::pair<Vec3, T>> nearest(Vec3 point, int k_count)
+    /**
+     * @brief Retrieves the nearest points nearest a specified location.
+     * @param point The location to start searching from.
+     * @param k_count The number of points to find.
+     * @return A vector containing the nearby points.
+     */
+    std::vector<PointPair> nearest(Vec3 point, int k_count)
     {
         std::vector<std::pair<PointPair, float>> candidates;
         nearest(point, k_count, candidates);
@@ -168,6 +193,15 @@ public:
         intersects_nodes(ray_origin, ray_direction, output);
         return output;
     }
+
+    /**
+     * @brief Raycasts the Octree for points that intersect the ray.
+     * @param ray_origin The origin of the ray
+     * @param ray_direction The direction of the ray
+     * @param tolerance A tolerance to use for points that are near the ray.
+     * @return A list of points.
+     * @remarks Utilizes intersects_nodes() to find points.
+     */
     std::vector<PointPair> intersects_points(Vec3 ray_origin, Vec3 ray_direction, float tolerance = 0.001f)
     {
         std::vector<const Octree*> nodes = intersects_nodes(ray_origin, ray_direction);
@@ -185,14 +219,19 @@ public:
         return output;
     }
     
+    /**
+     * @brief Retrieves the bounds of the Octree.
+     * @return The bounds
+     */
     inline Bounds get_bounds() const { return bounds_; }
+
+    /**
+     * @brief Retrieves the points stored within this node specifically.
+     * @return The list of points
+     * @remarks Does not return points stored inside child octants.
+     */
     inline std::vector<PointPair> get_points() const { return points_; }
     inline int get_depth_level() const { return depth_level_; }
-
-    operator std::string()
-    {
-        return to_string(0);
-    }
 
     auto begin() { return OctantIterator{ this }; }
     auto end() { return OctantIterator{}; }
@@ -335,22 +374,6 @@ private:
     inline void set_bounds(Bounds bounds)
     {
         bounds_ = bounds;
-    }
-
-    inline std::string to_string(int current_depth)
-    {
-        std::string indents(current_depth, '\t');
-        std::ostringstream s;
-        s << indents << "Node at " << static_cast<std::string>(bounds_.center) << " with size " << static_cast<std::string>(bounds_.size) << std::endl;
-        s << indents << "- Number of Points: " << num_points_ << std::endl;
-        if (children_.get() != nullptr)
-        {
-            for (auto& child : (*children_))
-            {
-                s << child.to_string(current_depth + 1);
-            }
-        }
-        return s.str();
     }
 
 private:
