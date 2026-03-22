@@ -23,6 +23,8 @@
 
 const int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
 
+// -- Helper Functions
+
 glm::vec3 toGLMVec3(const Vec3& vec) {
     return { vec.x, vec.y, vec.z };
 }
@@ -31,23 +33,45 @@ Vec3 toVec3(const glm::vec3& vec) {
     return { vec.x, vec.y, vec.z };
 }
 
+// -- GLSL Shader code
+
+const char* vert_cube_shader = "#version 450\n"
+"layout (location = 0) uniform mat4 uVP;\n"
+"layout (location = 0) in vec3 vPos;\n"
+"layout (location = 1) in vec3 iPos;\n"
+"layout (location = 2) in vec3 iScale;\n"
+"layout (location = 3) in vec3 iColor;\n"
+"out gl_PerVertex {\n"
+"   vec4 gl_Position;\n"
+"};\n"
+"out vec3 fColor;\n"
+"void main()\n"
+"{\n"
+"   fColor = iColor;\n"
+"   vec3 pos = (vPos * iScale) + iPos;\n"
+"   gl_Position = uVP * vec4(pos, 1.0);\n"
+"}";
+
 const char * vert_line_shader = "#version 450\n"
 "layout (location = 0) uniform mat4 uMVP;\n"
+"layout (location = 1) uniform vec3 uColor;\n"
 "layout (location = 0) in vec3 vPos;\n"
 "out gl_PerVertex {\n"
 "   vec4 gl_Position;\n"
 "};\n"
+"out vec3 fColor;\n"
 "void main()\n"
 "{\n"
+"   fColor = uColor;\n"
 "   gl_Position = uMVP * vec4(vPos, 1.0);\n"
 "}";
 
 const char * frag_line_shader = "#version 450\n"
-"layout (location = 0) uniform vec3 uColor = vec3(1.0);"
+"in vec3 fColor;\n"
 "out vec4 oColor;\n"
 "void main()\n"
 "{\n"
-"   oColor = vec4(uColor, 1.0);\n"
+"   oColor = vec4(fColor, 1.0);\n"
 "}";
 
 const char* vert_point_shader = "#version 450\n"
@@ -76,6 +100,7 @@ const char * frag_point_shader = "#version 450\n"
 "   oColor = vec4(fColor, 1.0);\n"
 "}";
 
+// -- Octree
 
 struct OctreeSettings
 {
@@ -86,8 +111,10 @@ struct OctreeSettings
 } current_octree_settings, edit_octree_settings;
 Octree<int> octree;
 
-GLuint pipeline_line, pipeline_dot;
-GLuint v_line_shader, f_line_shader, v_dot_shader, f_dot_shader;
+// -- Octree / Ray GL Objects
+
+GLuint pipeline_cube, pipeline_line, pipeline_dot;
+GLuint v_cube_shader, v_line_shader, f_line_shader, v_dot_shader, f_dot_shader;
 
 glm::vec3 cube_vertices[] = {
     { -0.5f, 0.5f, 0.5f }, { 0.5f, 0.5f, 0.5f},
@@ -101,9 +128,19 @@ unsigned cube_indices[] = {
     5, 4, 4, 6, 6, 7, 7, 5, // back
     4, 0, 6, 2, 1, 5, 7, 3 // sides
 };
-GLuint vbo_cube, vio_cube, vao_cube;
+GLuint vbo_cube, vbo_instanced_cube, vio_cube, vao_cube;
 
-const int MAX_POINT_COUNT = 10000;
+const int MAX_CUBE_COUNT = 10000;
+struct Cube {
+    glm::vec3 Position{ 0.0f };
+    glm::vec3 Scale{ 1.0f };
+    glm::vec3 Color{ 1.0f };
+} cubes[MAX_CUBE_COUNT];
+int current_cube_count;
+
+// -- Point GL Objects
+
+const int MAX_POINT_COUNT = 20000;
 struct Points {
     glm::vec3 Position;
     glm::vec3 Color;
@@ -113,7 +150,8 @@ GLuint vbo_points, vao_points;
 glm::vec3 line[] = {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
 GLuint vbo_line, vao_line;
 
-// euler angles in radians
+// -- Camera & Ray Settings
+
 glm::mat4 view = glm::lookAt(glm::vec3{ 0.0f, 0.0f, 75.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
 glm::mat4 projection = glm::perspective(45.0f, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.001f, 1000.0f);
 
@@ -128,18 +166,68 @@ glm::vec3 camera_rotation = { 0.0f, 0.0f, 0.0f };
 glm::quat camera_quat;
 float movement_speed = 50.0f;
 glm::vec2 camera_rotation_speed{ 10.0f };
-glm::vec2 prev_mouse_pos;
 bool ray_follows_camera = false;
+bool show_octree = true;
+
+bool should_update_casting = true;
+int last_point_update_count = ray_nearest;
+
+void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
+{
+    auto const src_str = [source]() {
+        switch (source)
+        {
+        case GL_DEBUG_SOURCE_API: return "API";
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM: return "WINDOW SYSTEM";
+        case GL_DEBUG_SOURCE_SHADER_COMPILER: return "SHADER COMPILER";
+        case GL_DEBUG_SOURCE_THIRD_PARTY: return "THIRD PARTY";
+        case GL_DEBUG_SOURCE_APPLICATION: return "APPLICATION";
+        case GL_DEBUG_SOURCE_OTHER: return "OTHER";
+        }
+        }();
+
+    auto const type_str = [type]() {
+        switch (type)
+        {
+        case GL_DEBUG_TYPE_ERROR: return "ERROR";
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: return "DEPRECATED_BEHAVIOR";
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR: return "UNDEFINED_BEHAVIOR";
+        case GL_DEBUG_TYPE_PORTABILITY: return "PORTABILITY";
+        case GL_DEBUG_TYPE_PERFORMANCE: return "PERFORMANCE";
+        case GL_DEBUG_TYPE_MARKER: return "MARKER";
+        case GL_DEBUG_TYPE_OTHER: return "OTHER";
+        }
+        }();
+
+    auto const severity_str = [severity]() {
+        switch (severity) {
+        case GL_DEBUG_SEVERITY_NOTIFICATION: return "NOTIFICATION";
+        case GL_DEBUG_SEVERITY_LOW: return "LOW";
+        case GL_DEBUG_SEVERITY_MEDIUM: return "MEDIUM";
+        case GL_DEBUG_SEVERITY_HIGH: return "HIGH";
+        }
+        }();
+    std::cout << src_str << ", " << type_str << ", " << severity_str << ", " << id << ": " << message << '\n';
+}
 
 void setup_gl()
 {
+    glEnable(GL_DEBUG_OUTPUT);
+    glDebugMessageCallback(message_callback, nullptr);
+
     glEnable(GL_PROGRAM_POINT_SIZE);
 
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
    
-    // 
-    v_line_shader = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &vert_line_shader);
+    // Shader Programs & Pipelines
+
+    v_cube_shader = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &vert_cube_shader);
     f_line_shader = glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &frag_line_shader);
+    glCreateProgramPipelines(1, &pipeline_cube);
+    glUseProgramStages(pipeline_cube, GL_VERTEX_SHADER_BIT, v_cube_shader);
+    glUseProgramStages(pipeline_cube, GL_FRAGMENT_SHADER_BIT, f_line_shader);
+
+    v_line_shader = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &vert_line_shader);
     glCreateProgramPipelines(1, &pipeline_line);
     glUseProgramStages(pipeline_line, GL_VERTEX_SHADER_BIT, v_line_shader);
     glUseProgramStages(pipeline_line, GL_FRAGMENT_SHADER_BIT, f_line_shader);
@@ -150,7 +238,7 @@ void setup_gl()
     glUseProgramStages(pipeline_dot, GL_VERTEX_SHADER_BIT, v_dot_shader);
     glUseProgramStages(pipeline_dot, GL_FRAGMENT_SHADER_BIT, f_dot_shader);
 
-    //
+    // Cube
 
     glCreateBuffers(1, &vbo_cube);
     glNamedBufferStorage(vbo_cube, sizeof(cube_vertices), cube_vertices, GL_DYNAMIC_STORAGE_BIT);
@@ -165,6 +253,25 @@ void setup_gl()
     glVertexArrayAttribFormat(vao_cube, 0, 3, GL_FLOAT, GL_FALSE, 0);
     glVertexArrayAttribBinding(vao_cube, 0, 0);
 
+    glCreateBuffers(1, &vbo_instanced_cube);
+    glNamedBufferStorage(vbo_instanced_cube, sizeof(cubes), cubes, GL_DYNAMIC_STORAGE_BIT);
+    glVertexArrayVertexBuffer(vao_cube, 1, vbo_instanced_cube, 0, sizeof(Cube));
+    glVertexArrayBindingDivisor(vao_cube, 1, 1);
+
+    glEnableVertexArrayAttrib(vao_cube, 1);
+    glVertexArrayAttribFormat(vao_cube, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Cube, Position));
+    glVertexArrayAttribBinding(vao_cube, 1, 1);
+
+    glEnableVertexArrayAttrib(vao_cube, 2);
+    glVertexArrayAttribFormat(vao_cube, 2, 3, GL_FLOAT, GL_FALSE, offsetof(Cube, Scale));
+    glVertexArrayAttribBinding(vao_cube, 2, 1);
+
+    glEnableVertexArrayAttrib(vao_cube, 3);
+    glVertexArrayAttribFormat(vao_cube, 3, 3, GL_FLOAT, GL_FALSE, offsetof(Cube, Color));
+    glVertexArrayAttribBinding(vao_cube, 3, 1);
+
+    // Line
+
     glCreateBuffers(1, &vbo_line);
     glNamedBufferStorage(vbo_line, sizeof(line), line, GL_DYNAMIC_STORAGE_BIT);
 
@@ -174,7 +281,7 @@ void setup_gl()
     glVertexArrayAttribFormat(vao_line, 0, 3, GL_FLOAT, GL_FALSE, 0);
     glVertexArrayAttribBinding(vao_line, 0, 0);
 
-    // 
+    // Points
 
     glCreateBuffers(1, &vbo_points);
     glNamedBufferStorage(vbo_points, sizeof(points), points, GL_DYNAMIC_STORAGE_BIT);
@@ -212,26 +319,34 @@ void setup_octree(OctreeSettings settings)
     std::cout << "Generated " << settings.point_count << " points." << std::endl;
 }
 
-void draw_cube(glm::vec3 position, glm::vec3 scale, glm::vec3 color = glm::vec3{1.0f})
+void prepare_cube(glm::vec3 position, glm::vec3 scale, glm::vec3 color = glm::vec3{ 1.0f })
 {
-    glm::mat4 t = glm::translate(glm::mat4{ 1.0f }, position);
-    glm::mat4 s = glm::scale(glm::mat4{ 1.0f }, scale);
-    glm::mat4 m = t * s;
+    cubes[current_cube_count].Position = position;
+    cubes[current_cube_count].Scale = scale;
+    cubes[current_cube_count].Color = color;
 
-    glm::mat4 mvp = projection * view * m;
+    current_cube_count++;
+}
 
-    glBindProgramPipeline(pipeline_line);
+void draw_cubes()
+{
+    glm::mat4 mvp = projection * view;
+
+    glBindProgramPipeline(pipeline_cube);
+
+    glNamedBufferSubData(vbo_instanced_cube, 0, sizeof(cubes), cubes);
+
     glLineWidth(1.0f);
     glBindVertexArray(vao_cube);
 
-    glProgramUniformMatrix4fv(v_line_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
-    glProgramUniform3fv(f_line_shader, 0, 1, glm::value_ptr(color));
-    glDrawElements(GL_LINES, sizeof(cube_indices) / sizeof(unsigned), GL_UNSIGNED_INT, 0);
+    glProgramUniformMatrix4fv(v_cube_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
+    glDrawElementsInstanced(GL_LINES, sizeof(cube_indices) / sizeof(unsigned), GL_UNSIGNED_INT, 0, current_cube_count);
 
     glBindProgramPipeline(0);
+    current_cube_count = 0;
 }
 
-void draw_octant(const Octree<int>* octant, const glm::vec3* color = nullptr)
+void prepare_octant(const Octree<int>* octant, const glm::vec3* color = nullptr)
 {
     Bounds bounds = octant->get_bounds();
     glm::vec3 pos = toGLMVec3(bounds.center);
@@ -243,12 +358,12 @@ void draw_octant(const Octree<int>* octant, const glm::vec3* color = nullptr)
     }
     else
     {
-        glm::vec3 base_color = glm::vec3{ 0.9f };
+        const glm::vec3 CUBE_BASE_COLOR = glm::vec3{ 0.9f };
         float color_mult = 0.1f;
-        draw_color = base_color - octant->get_depth_level() * color_mult;
+        draw_color = CUBE_BASE_COLOR - octant->get_depth_level() * color_mult;
     }
 
-    draw_cube(pos, size, draw_color);
+    prepare_cube(pos, size, draw_color);
 }
 
 void draw_points()
@@ -283,7 +398,7 @@ void draw_ray()
     glBindVertexArray(vao_line);
 
     glProgramUniformMatrix4fv(v_line_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
-    glProgramUniform3fv(f_line_shader, 0, 1, glm::value_ptr(color));
+    glProgramUniform3fv(v_line_shader, 1, 1, glm::value_ptr(color));
     glDrawArrays(GL_LINES, 0, 2);
 
     glBindProgramPipeline(0);
@@ -291,15 +406,29 @@ void draw_ray()
 
 void handle_raycast()
 {
-    glm::vec3 rot_vec = ray_rotation * glm::vec3{ 0.0f, 0.0f, 1.0f };
+    static std::vector<const Octree<int>*> nodes;
+    static std::vector<std::pair<Vec3, int>> nearest_points;
 
+    glm::vec3 rot_vec = ray_rotation * glm::vec3{ 0.0f, 0.0f, 1.0f };
     Vec3 origin = toVec3(ray_origin);
     Vec3 direction = toVec3(rot_vec);
+    const glm::vec3 OCTANT_CAST_COLOR = glm::vec3{ 1.0f, 0.4f, 0.4f };
 
-    auto nodes = octree.intersects_nodes(origin, direction);
-    glm::vec3 color = glm::vec3{ 1.0f, 0.4f, 0.4f };
+    if (should_update_casting || ray_follows_camera)
+    {
+        // cache casting and nearest neighbors
+        nodes = octree.intersects_nodes(origin, direction);
+        if (ray_nearest > 0)
+        {
+            nearest_points = octree.nearest(origin, ray_nearest);
+        }
+        else
+        {
+            nearest_points.clear();
+        }
+        should_update_casting = false;
+    }
 
-    auto nearest_points = octree.nearest(origin, ray_nearest);
     for (auto point : nearest_points)
     {
         points[point.second].Color = glm::vec3{ 0.0f, 0.0f, 1.0f };
@@ -315,7 +444,8 @@ void handle_raycast()
                 points[point.second].Color = glm::vec3{ 0.0f, 1.0f, 0.0f };
             }
         }
-        draw_octant(node, &color);
+        if (show_octree)
+            prepare_octant(node, &OCTANT_CAST_COLOR);
     }
 }
 
@@ -323,6 +453,7 @@ void update_camera(GLFWwindow* window, float dt)
 {
     static bool esc_was_down = false;
     static bool can_look = true;
+    static glm::vec2 prev_mouse_pos;
 
     bool esc_down_this_frame = false;
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -354,33 +485,35 @@ void update_camera(GLFWwindow* window, float dt)
 
     camera_quat = glm::quat{ glm::radians(camera_rotation) };
 
-    glm::vec3 movement{ 0.0f };
+    glm::vec3 relative_movement{ 0.0f };
+    glm::vec3 absolute_movement{ 0.0f };
     glm::vec3 rotation = camera_rotation;
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
     {
-        movement.z += movement_speed;
+        relative_movement.z += movement_speed;
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
     {
-        movement.z -= movement_speed;
+        relative_movement.z -= movement_speed;
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
     {
-        movement.x += movement_speed;
+        relative_movement.x += movement_speed;
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
     {
-        movement.x -= movement_speed;
+        relative_movement.x -= movement_speed;
     }
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
     {
-        movement.y += movement_speed;
+        absolute_movement.y += movement_speed;
     }
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
     {
-        movement.y -= movement_speed;
+        absolute_movement.y -= movement_speed;
     }
-    camera_pos += camera_quat * movement * dt;
+    camera_pos += camera_quat * relative_movement * dt;
+    camera_pos += absolute_movement * dt;
 }
 
 void run()
@@ -393,13 +526,13 @@ void run()
     glm::vec3 look_dir = camera_quat * glm::vec3{ 0.0f, 0.0f, 1.0f };
     view = glm::lookAt(camera_pos, camera_pos + look_dir, glm::vec3{ 0.0f, 1.0f, 0.0f });
 
-    for (auto octant : octree)
+    if (show_octree)
     {
-        draw_octant(octant);
+        for (auto octant : octree)
+        {
+            prepare_octant(octant);
+        }
     }
-    handle_raycast();
-
-    draw_points();
 
     ray_rotation = glm::quat{ glm::radians(ray_rotation_euler) };
     if (ray_follows_camera)
@@ -407,11 +540,25 @@ void run()
         ray_origin = camera_pos;
         ray_rotation_euler = camera_rotation;
     }
-    else
+
+    handle_raycast();
+}
+
+void draw()
+{
+    if (show_octree)
+        draw_cubes();
+    draw_points();
+
+
+    if (!ray_follows_camera)
     {
         draw_ray();
     }
+}
 
+void gui(float dt)
+{
     ImGui::Begin("Instructions");
     ImGui::Text("WASD / LShift / Space - Move");
     ImGui::Text("Esc - Lock/Unlock Camera Rotation (Look)");
@@ -422,8 +569,15 @@ void run()
 
     ImGui::Begin("Settings");
 
+    float fps = 1.0f / dt;
+    ImGui::LabelText("FPS", "%.f", fps);
+
     if (ImGui::TreeNode("Octree"))
     {
+        ImGui::Checkbox("Show Octree Grid", &show_octree);
+
+        ImGui::SliderFloat("Grid Size", &edit_octree_settings.size, 50.0f, 500.0f);
+
         int depth = edit_octree_settings.max_depth;
         if (ImGui::SliderInt("Max Depth", &depth, 0, 20))
             edit_octree_settings.max_depth = depth;
@@ -432,24 +586,39 @@ void run()
         if (ImGui::Button("Remake Octree"))
         {
             setup_octree(edit_octree_settings);
+            should_update_casting = true;
         }
         ImGui::TreePop();
     }
 
     if (ImGui::TreeNode("Ray"))
     {
-        ImGui::InputFloat3("Origin", glm::value_ptr(ray_origin));
-        ImGui::SliderFloat3("Rotation", glm::value_ptr(ray_rotation_euler), 0.0f, 360.0f);
+        if (ImGui::InputFloat3("Origin", glm::value_ptr(ray_origin)))
+        {
+            should_update_casting = true;
+        }
+
+        if (ImGui::SliderFloat3("Rotation", glm::value_ptr(ray_rotation_euler), 0.0f, 360.0f))
+        {
+            should_update_casting = true;
+        }
         if (ImGui::Button("Orient Ray to Camera"))
         {
             ray_origin = camera_pos;
             ray_rotation_euler = camera_rotation;
+            should_update_casting = true;
         }
 
-        ImGui::Checkbox("Lock Ray to Camera", &ray_follows_camera);
+        ImGui::Checkbox("Lock Ray to Camera (Affects Performance)", &ray_follows_camera);
 
-        ImGui::InputFloat("Cast Tolerance", &ray_tolerance);
-        ImGui::SliderInt("Num Nearest Points", &ray_nearest, 0, edit_octree_settings.point_count);
+        if (ImGui::InputFloat("Cast Tolerance", &ray_tolerance))
+        {
+            should_update_casting = true;
+        }
+        if (ImGui::SliderInt("Num Nearest Points", &ray_nearest, 0, edit_octree_settings.point_count))
+        {
+            should_update_casting = true;
+        }
         ImGui::TreePop();
     }
     ImGui::End();
@@ -522,6 +691,8 @@ int main()
 
         update_camera(window, dt);
         run();
+        draw();
+        gui(dt);
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

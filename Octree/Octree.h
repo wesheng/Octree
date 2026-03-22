@@ -153,7 +153,7 @@ public:
     }
 
     /**
-     * @brief Retrieves the nearest points nearest a specified location.
+     * @brief Retrieves a sorted list of the nearest points of a specified location.
      * @param point The location to start searching from.
      * @param k_count The number of points to find.
      * @return A vector containing the nearby points.
@@ -163,13 +163,15 @@ public:
         std::vector<std::pair<PointPair, float>> candidates;
         nearest(point, k_count, candidates);
 
-        std::sort(candidates.begin(), candidates.end(), [](std::pair<PointPair, float> a, std::pair<PointPair, float> b) {
+        // do partial sort for only count that will be returned
+        float result_count = std::min(k_count, static_cast<int>(candidates.size()));
+        std::partial_sort(candidates.begin(), candidates.begin() + result_count, candidates.end(), [](std::pair<PointPair, float> a, std::pair<PointPair, float> b) {
             return a.second < b.second;
             });
 
         // return slice
         std::vector<PointPair> output;
-        for (int i = 0; i < std::min(k_count, static_cast<int>(candidates.size())); i++)
+        for (int i = 0; i < result_count; i++)
         {
             output.push_back(candidates[i].first);
         }
@@ -229,6 +231,14 @@ public:
      */
     inline std::vector<PointPair> get_points() const { return points_; }
     inline int get_depth_level() const { return depth_level_; }
+    /**
+     * @brief Determines whether this node is a leaf (no children) or not (has children).
+     * @return Whether the node is a leaf or not.
+     */
+    inline bool is_leaf() const
+    {
+        return children_ == nullptr;
+    }
 
     auto begin() { return OctantIterator{ this }; }
     auto end() { return OctantIterator{}; }
@@ -365,11 +375,6 @@ private:
             }
             points_.clear();
         }
-    }
-
-    inline bool is_leaf()
-    {
-        return children_ == nullptr;
     }
 
     inline void set_bounds(Bounds bounds)

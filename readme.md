@@ -24,10 +24,12 @@ cmake -S . -B ./out
 cmake --build ./out
 ```
 
-Demo and Test dependencies will be downloaded automatically via FetchContent. The project was tested using the MSVC compiler on Windows.
+Demo and Test dependencies will be downloaded automatically via FetchContent.
+
+The project was tested using the MSVC compiler on Windows.
 
 ## Demo
-The Demo is an minimal, interactive OpenGL implementation (w/ DSA) created to showcase the Octree implementation. It uses a rendered ray to demonstrate raycasting and nearby neighbors. The ray can be set to a static position or to follow camera position and rotation.
+The Demo is an minimal, interactive OpenGL 4.6 implementation (w/ DSA) created to showcase the Octree implementation. It uses a rendered ray to demonstrate raycasting and nearby neighbors. The ray can be set to a static position or to follow camera position and rotation.
 
 The Octree can also be regenerated with new points & depth settings.
 
@@ -41,5 +43,9 @@ It uses the following libraries:
 - [Glad](https://github.com/Dav1dde/glad.git)
 - [imgui](https://github.com/ocornut/imgui)
 
+Note that the demo *does* make several optimizations for smoother framerate during rendering.
+- Utilizes instanced rendering for the Octree grid and Points
+- Caches Octree operation results unless ray is following camera
+
 ## Tests
-This project uses [GoogleTest](https://github.com/google/googletest) as the test suite. Tests focus on the Octree itself; tests for Utility classes are out of scope for this project.
+This project uses [GoogleTest](https://github.com/google/googletest) as the test suite. Tests focus on the Octree itself; tests for utility classes are out of scope for this project.
