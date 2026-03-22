@@ -274,8 +274,6 @@ private:
         }
         else
         {
-            // brute force nearest neighbors
-            std::vector<std::tuple<PointPair, float>> sqr_distances;
             for (PointPair p : points_)
             {
                 candidates.push_back({ p, Vec3::sqr_distance(point, p.first) });

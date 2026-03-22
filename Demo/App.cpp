@@ -88,7 +88,7 @@ const char* vert_point_shader = "#version 450\n"
 "{\n"
 "   fColor = vColor;\n"
 "   float dst = distance(uCameraPos, vPos) / 2;"
-"   gl_PointSize = clamp(20 - dst, 2, 10);"
+"   gl_PointSize = clamp(20 - dst, 2, 10);" // scale the point a bit by distance, it gets hard to see the point otherwise
 "   gl_Position = uMVP * vec4(vPos, 1.0);\n"
 "}";
 
@@ -105,7 +105,7 @@ const char * frag_point_shader = "#version 450\n"
 struct OctreeSettings
 {
     float size = 50.0f;
-    unsigned min_capacity = 10;
+    unsigned min_capacity = 15;
     unsigned max_depth = 5; 
     int point_count = 500;
 } current_octree_settings, edit_octree_settings;
@@ -130,17 +130,18 @@ unsigned cube_indices[] = {
 };
 GLuint vbo_cube, vbo_instanced_cube, vio_cube, vao_cube;
 
-const int MAX_CUBE_COUNT = 10000;
+const int MAX_CUBE_COUNT = 50000;
 struct Cube {
     glm::vec3 Position{ 0.0f };
     glm::vec3 Scale{ 1.0f };
     glm::vec3 Color{ 1.0f };
 } cubes[MAX_CUBE_COUNT];
 int current_cube_count;
+const int RENDER_OCTREE_POINT_THRESHOLD = 100000;
 
 // -- Point GL Objects
 
-const int MAX_POINT_COUNT = 20000;
+const int MAX_POINT_COUNT = 1200000;
 struct Points {
     glm::vec3 Position;
     glm::vec3 Color;
@@ -159,6 +160,8 @@ glm::vec3 ray_origin = glm::vec3{ 10.0f, 10.0f, -10.0f };
 glm::vec3 ray_rotation_euler = glm::vec3{ 15.0f, 330.0f, 0.0f };
 glm::quat ray_rotation{ glm::vec3{0.0f} };
 float ray_tolerance = 1.0f;
+
+const int RAY_NEAREST_POINT_THRESHOLD = 100000;
 int ray_nearest = 20;
 
 glm::vec3 camera_pos = { 0.0f, 0.0f, -75.0f };
@@ -169,54 +172,14 @@ glm::vec2 camera_rotation_speed{ 10.0f };
 bool ray_follows_camera = false;
 bool show_octree = true;
 
+
+// -- Caching values
+
 bool should_update_casting = true;
-int last_point_update_count = ray_nearest;
-
-void message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar const* message, void const* user_param)
-{
-    auto const src_str = [source]() {
-        switch (source)
-        {
-        case GL_DEBUG_SOURCE_API: return "API";
-        case GL_DEBUG_SOURCE_WINDOW_SYSTEM: return "WINDOW SYSTEM";
-        case GL_DEBUG_SOURCE_SHADER_COMPILER: return "SHADER COMPILER";
-        case GL_DEBUG_SOURCE_THIRD_PARTY: return "THIRD PARTY";
-        case GL_DEBUG_SOURCE_APPLICATION: return "APPLICATION";
-        case GL_DEBUG_SOURCE_OTHER: return "OTHER";
-        }
-        }();
-
-    auto const type_str = [type]() {
-        switch (type)
-        {
-        case GL_DEBUG_TYPE_ERROR: return "ERROR";
-        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: return "DEPRECATED_BEHAVIOR";
-        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR: return "UNDEFINED_BEHAVIOR";
-        case GL_DEBUG_TYPE_PORTABILITY: return "PORTABILITY";
-        case GL_DEBUG_TYPE_PERFORMANCE: return "PERFORMANCE";
-        case GL_DEBUG_TYPE_MARKER: return "MARKER";
-        case GL_DEBUG_TYPE_OTHER: return "OTHER";
-        }
-        }();
-
-    auto const severity_str = [severity]() {
-        switch (severity) {
-        case GL_DEBUG_SEVERITY_NOTIFICATION: return "NOTIFICATION";
-        case GL_DEBUG_SEVERITY_LOW: return "LOW";
-        case GL_DEBUG_SEVERITY_MEDIUM: return "MEDIUM";
-        case GL_DEBUG_SEVERITY_HIGH: return "HIGH";
-        }
-        }();
-    std::cout << src_str << ", " << type_str << ", " << severity_str << ", " << id << ": " << message << '\n';
-}
 
 void setup_gl()
 {
-    glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(message_callback, nullptr);
-
     glEnable(GL_PROGRAM_POINT_SIZE);
-
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
    
     // Shader Programs & Pipelines
@@ -307,6 +270,7 @@ void setup_octree(OctreeSettings settings)
     std::default_random_engine rand_engine { rand_device()};
     std::uniform_real_distribution<float> rand_dist{ -settings.size / 2.0f, settings.size / 2.0f };
 
+    float time = glfwGetTime();
     Bounds bounds { {0.0f, 0.0f, 0.0f}, {settings.size, settings.size, settings.size} };
     octree = Octree<int>{ bounds, settings.min_capacity, settings.max_depth };
     for (int i = 0; i < settings.point_count; i++)
@@ -315,8 +279,10 @@ void setup_octree(OctreeSettings settings)
         points[i].Color = glm::vec3{ 1.0f };
         octree.add(toVec3(points[i].Position), i);
     }
+
+    float finish_time = glfwGetTime();
     current_octree_settings = settings;
-    std::cout << "Generated " << settings.point_count << " points." << std::endl;
+    std::cout << "Generated " << settings.point_count << " points in " << (finish_time - time) << " seconds." << std::endl;
 }
 
 void prepare_cube(glm::vec3 position, glm::vec3 scale, glm::vec3 color = glm::vec3{ 1.0f })
@@ -334,7 +300,7 @@ void draw_cubes()
 
     glBindProgramPipeline(pipeline_cube);
 
-    glNamedBufferSubData(vbo_instanced_cube, 0, sizeof(cubes), cubes);
+    glNamedBufferSubData(vbo_instanced_cube, 0, sizeof(Cube) * current_cube_count, cubes);
 
     glLineWidth(1.0f);
     glBindVertexArray(vao_cube);
@@ -373,7 +339,7 @@ void draw_points()
 
     glBindProgramPipeline(pipeline_dot);
 
-    glNamedBufferSubData(vbo_points, 0, sizeof(points), points);
+    glNamedBufferSubData(vbo_points, 0, sizeof(Points) * current_octree_settings.point_count, points);
 
     glBindVertexArray(vao_points);
 
@@ -574,17 +540,26 @@ void gui(float dt)
 
     if (ImGui::TreeNode("Octree"))
     {
-        ImGui::Checkbox("Show Octree Grid", &show_octree);
-
+        ImGui::BeginDisabled(current_octree_settings.point_count > RENDER_OCTREE_POINT_THRESHOLD);
+        ImGui::Checkbox("Show Octree Grid (Affects Performance)", &show_octree);
+        ImGui::EndDisabled();
         ImGui::SliderFloat("Grid Size", &edit_octree_settings.size, 50.0f, 500.0f);
 
         int depth = edit_octree_settings.max_depth;
-        if (ImGui::SliderInt("Max Depth", &depth, 0, 20))
+        if (ImGui::SliderInt("Max Depth", &depth, 0, 10))
             edit_octree_settings.max_depth = depth;
 
         ImGui::SliderInt("Num Points", &edit_octree_settings.point_count, 0, MAX_POINT_COUNT);
         if (ImGui::Button("Remake Octree"))
         {
+            if (edit_octree_settings.point_count > RENDER_OCTREE_POINT_THRESHOLD)
+            {
+                show_octree = false;
+            }
+            if (edit_octree_settings.point_count > RAY_NEAREST_POINT_THRESHOLD)
+            {
+                ray_nearest = 0;
+            }
             setup_octree(edit_octree_settings);
             should_update_casting = true;
         }
@@ -609,16 +584,18 @@ void gui(float dt)
             should_update_casting = true;
         }
 
-        ImGui::Checkbox("Lock Ray to Camera (Affects Performance)", &ray_follows_camera);
+        ImGui::Checkbox("Lock Ray to Camera", &ray_follows_camera);
 
         if (ImGui::InputFloat("Cast Tolerance", &ray_tolerance))
         {
             should_update_casting = true;
         }
-        if (ImGui::SliderInt("Num Nearest Points", &ray_nearest, 0, edit_octree_settings.point_count))
+        ImGui::BeginDisabled(current_octree_settings.point_count > RAY_NEAREST_POINT_THRESHOLD);
+        if (ImGui::SliderInt("Num Nearest Points (Affects Performance)", &ray_nearest, 0, edit_octree_settings.point_count))
         {
             should_update_casting = true;
         }
+        ImGui::EndDisabled();
         ImGui::TreePop();
     }
     ImGui::End();
@@ -627,6 +604,7 @@ void gui(float dt)
 void unload()
 {
     glDeleteBuffers(1, &vbo_cube);
+    glDeleteBuffers(1, &vbo_instanced_cube);
     glDeleteBuffers(1, &vio_cube);
     glDeleteVertexArrays(1, &vao_cube);
 

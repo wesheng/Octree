@@ -45,7 +45,15 @@ It uses the following libraries:
 
 Note that the demo *does* make several optimizations for smoother framerate during rendering.
 - Utilizes instanced rendering for the Octree grid and Points
+	- Rendering the grid is disabled for large number of points
 - Caches Octree operation results unless ray is following camera
 
 ## Tests
 This project uses [GoogleTest](https://github.com/google/googletest) as the test suite. Tests focus on the Octree itself; tests for utility classes are out of scope for this project.
+
+## Future Work
+
+- Performance of this implementation compared to other implementations
+- Searching nearest neighbors incurs the largest performance cost
+- Support for storing triangles and other structures for meshes
+- 
