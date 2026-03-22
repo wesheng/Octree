@@ -7,6 +7,7 @@
 #include <tuple>
 #include <ranges>
 #include <stack>
+#include <queue>
 #include <iterator>
 #include "MathUtility.h"
 #include "Vec3.h"
@@ -19,6 +20,16 @@ template<typename T>
 class Octree {
     using Octants = std::array<Octree<T>, 8>;
     using PointPair = std::pair<Vec3, T>;
+
+    struct ComparePointPairDistance // used for priority queue.
+    {
+        bool operator()(const std::pair<PointPair, float> l, const std::pair<PointPair, float> r)
+        {
+            return l.second < r.second;
+        }
+    };
+    using PointPairDistance = std::pair<PointPair, float>;
+    using PriorityQueuePointPairDistance = std::priority_queue<PointPairDistance, std::vector<PointPairDistance>, ComparePointPairDistance>;
 public:
     // iterators - https://www.internalpointers.com/post/writing-custom-iterators-modern-cpp
     // https://stackoverflow.com/questions/72405122/creating-an-iterator-with-c20-concepts-for-custom-container
@@ -160,20 +171,18 @@ public:
      */
     std::vector<PointPair> nearest(Vec3 point, int k_count)
     {
-        std::vector<std::pair<PointPair, float>> candidates;
-        nearest(point, k_count, candidates);
+        // K-NN Implementation partially based on the work described by Jun Zhu et. al.:
+        // Zhu, J., Li, H., Wang, Z., Wang, S., & Zhang, T. (2024). i-Octree: A Fast, Lightweight, and Dynamic Octree for Proximity Search (arXiv:2309.08315; Version 2). arXiv. https://doi.org/10.48550/arXiv.2309.08315
 
-        // do partial sort for only count that will be returned
-        float result_count = std::min(k_count, static_cast<int>(candidates.size()));
-        std::partial_sort(candidates.begin(), candidates.begin() + result_count, candidates.end(), [](std::pair<PointPair, float> a, std::pair<PointPair, float> b) {
-            return a.second < b.second;
-            });
+        PriorityQueuePointPairDistance candidates;
+        nearest(point, k_count, candidates);
 
         // return slice
         std::vector<PointPair> output;
-        for (int i = 0; i < result_count; i++)
+        while (!candidates.empty())
         {
-            output.push_back(candidates[i].first);
+            output.push_back(candidates.top().first);
+            candidates.pop();
         }
 
         return output;
@@ -246,7 +255,7 @@ public:
 private:
     void nearest(Vec3 point, int k_count, std::vector<std::pair<PointPair, float>>& candidates)
     {
-        if (children_ != nullptr)
+        if (!is_leaf())
         {
             Octants& children = *children_;
 
@@ -280,6 +289,50 @@ private:
             }
         }
     }
+
+    void nearest(Vec3 point, int k_count, PriorityQueuePointPairDistance& candidates)
+    {
+        if (!is_leaf())
+        {
+            Octants& children = *children_;
+
+            // find the octant point is residing in and test those
+            unsigned index = get_child_index(point);
+            children[index].nearest(point, k_count, candidates);
+
+            // if we are still discovering candidates then use max distance.
+            // otherwise if candidates is full use the top.
+            float furthest_sqr_dst = std::numeric_limits<float>::max();
+            if (candidates.size() >= k_count)
+            {
+                furthest_sqr_dst = candidates.top().second;
+            }
+
+            // if point is near another quadrant check those too
+            for (int i = 0; i < children.size(); i++)
+            {
+                if (i == index) continue;
+
+                if (children[i].bounds_.intersects_sphere(point, furthest_sqr_dst))
+                {
+                    children[i].nearest(point, k_count, candidates);
+                }
+            }
+        }
+        else
+        {
+            for (PointPair p : points_)
+            {
+                float distance = Vec3::sqr_distance(point, p.first);
+                candidates.push({ p, distance });
+                if (candidates.size() > k_count)
+                {
+                    candidates.pop();
+                }
+            }
+        }
+    }
+
     void intersects_nodes(Vec3 ray_origin, Vec3 ray_direction, std::vector<const Octree*>& candidates)
     {
         if (is_leaf())
