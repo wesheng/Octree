@@ -189,15 +189,18 @@ TEST(OctreeTest, RayIntersectsPoint)
     Octrees::Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
     Octrees::Octree<int> octree{ bounds, 5, 5 };
 
-    Octrees::Vec3 point = { 10.0f, 10.0f, 10.0f };
+    Octrees::Vec3 point { 10.0f, 10.0f, 10.0f };
     octree.add(point, 0);
+
+    // Expected to miss
+    octree.add({ 0.0f, 5.0f, 0.0f }, 1);
 
     Octrees::Vec3 ray_position{ 10.0f, 10.0f, 100.0f };
     Octrees::Vec3 ray_direction{ 0.0f, 0.0f, -1.0f };
 
     std::vector<std::pair<Octrees::Vec3, int>> intersections;
     EXPECT_NO_THROW(intersections = octree.intersects_points(ray_position, ray_direction));
-    EXPECT_GT(intersections.size(), 0);
+    EXPECT_EQ(intersections.size(), 1);
     EXPECT_TRUE(Octrees::Vec3::approx(intersections.front().first, point));
 }
 
