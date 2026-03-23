@@ -20,16 +20,15 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-
 const int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
 
 // -- Helper Functions
 
-glm::vec3 toGLMVec3(const Vec3& vec) {
+glm::vec3 toGLMVec3(const Octrees::Vec3& vec) {
     return { vec.x, vec.y, vec.z };
 }
 
-Vec3 toVec3(const glm::vec3& vec) {
+Octrees::Vec3 toVec3(const glm::vec3& vec) {
     return { vec.x, vec.y, vec.z };
 }
 
@@ -109,7 +108,7 @@ struct OctreeSettings
     unsigned max_depth = 5; 
     int point_count = 500;
 } current_octree_settings, edit_octree_settings;
-Octree<int> octree;
+Octrees::Octree<int> octree;
 
 // -- Octree / Ray GL Objects
 
@@ -270,8 +269,8 @@ void setup_octree(OctreeSettings settings)
     std::uniform_real_distribution<float> rand_dist{ -settings.size / 2.0f, settings.size / 2.0f };
 
     float time = static_cast<float>(glfwGetTime());
-    Bounds bounds { {0.0f, 0.0f, 0.0f}, {settings.size, settings.size, settings.size} };
-    octree = Octree<int>{ bounds, settings.min_capacity, settings.max_depth };
+    Octrees::Bounds bounds { {0.0f, 0.0f, 0.0f}, {settings.size, settings.size, settings.size} };
+    octree = Octrees::Octree<int>{ bounds, settings.min_capacity, settings.max_depth };
     for (int i = 0; i < settings.point_count; i++)
     {
         points[i].Position = glm::vec3{ rand_dist(rand_engine), rand_dist(rand_engine), rand_dist(rand_engine) };
@@ -311,9 +310,9 @@ void draw_cubes()
     current_cube_count = 0;
 }
 
-void prepare_octant(const Octree<int>* octant, const glm::vec3* color = nullptr)
+void prepare_octant(const Octrees::Octree<int>* octant, const glm::vec3* color = nullptr)
 {
-    Bounds bounds = octant->get_bounds();
+    Octrees::Bounds bounds = octant->get_bounds();
     glm::vec3 pos = toGLMVec3(bounds.center);
     glm::vec3 size = toGLMVec3(bounds.size);
     glm::vec3 draw_color;
@@ -371,12 +370,12 @@ void draw_ray()
 
 void handle_raycast()
 {
-    static std::vector<const Octree<int>*> nodes;
-    static std::vector<std::pair<Vec3, int>> nearest_points;
+    static std::vector<const Octrees::Octree<int>*> nodes;
+    static std::vector<std::pair<Octrees::Vec3, int>> nearest_points;
 
     glm::vec3 rot_vec = ray_rotation * glm::vec3{ 0.0f, 0.0f, 1.0f };
-    Vec3 origin = toVec3(ray_origin);
-    Vec3 direction = toVec3(rot_vec);
+    Octrees::Vec3 origin = toVec3(ray_origin);
+    Octrees::Vec3 direction = toVec3(rot_vec);
     const glm::vec3 OCTANT_CAST_COLOR = glm::vec3{ 1.0f, 0.4f, 0.4f };
 
     if (should_update_casting || ray_follows_camera)
@@ -402,9 +401,9 @@ void handle_raycast()
     for (auto node : nodes)
     {
         auto node_points = node->get_points();
-        for (std::pair<Vec3, int> point : node_points)
+        for (std::pair<Octrees::Vec3, int> point : node_points)
         {
-            if (MathUtility::ray_point_intersects(origin, direction, point.first, ray_tolerance))
+            if (Octrees::MathUtility::ray_point_intersects(origin, direction, point.first, ray_tolerance))
             {
                 points[point.second].Color = glm::vec3{ 0.0f, 1.0f, 0.0f };
             }

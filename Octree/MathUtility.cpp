@@ -1,6 +1,6 @@
 #include "MathUtility.h"
 
-bool MathUtility::aabb_sphere_intersects(Vec3 min, Vec3 max, Vec3 center, float radius)
+bool Octrees::MathUtility::aabb_sphere_intersects(Vec3 min, Vec3 max, Vec3 center, float radius)
 {
     Vec3 clamped = {
         MathUtility::clamp(center.x, min.x, max.x),
@@ -11,7 +11,7 @@ bool MathUtility::aabb_sphere_intersects(Vec3 min, Vec3 max, Vec3 center, float 
     return sqr_distance <= radius * radius;
 }
 
-bool MathUtility::aabb_ray_intersects(Vec3 min, Vec3 max, Vec3 origin, Vec3 direction)
+bool Octrees::MathUtility::aabb_ray_intersects(Vec3 min, Vec3 max, Vec3 origin, Vec3 direction)
 {
     // ray - aabb test
     // use slab method
@@ -24,7 +24,7 @@ bool MathUtility::aabb_ray_intersects(Vec3 min, Vec3 max, Vec3 origin, Vec3 dire
     return t_near <= t_far && t_far >= 0; // t_far >= 0 to ensure ray isn't facing away from aabb.
 }
 
-bool MathUtility::ray_point_intersects(Vec3 ray_origin, Vec3 ray_direction, Vec3 point, float tolerance)
+bool Octrees::MathUtility::ray_point_intersects(Vec3 ray_origin, Vec3 ray_direction, Vec3 point, float tolerance)
 {
     // ray-sphere intersection. we're treating the points as spheres as provided by tolerance.
     // https://iquilezles.org/articles/intersectors/

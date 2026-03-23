@@ -1,6 +1,6 @@
 
-add_library(Octree STATIC "Octree.h"  "Vec3.h" "Bounds.h" "MathUtility.h" "MathUtility.cpp")
+add_library(Octrees STATIC "Octree.h"  "Vec3.h" "Bounds.h" "MathUtility.h" "MathUtility.cpp")
+add_library(Octrees::Octree ALIAS Octrees)
+set_property(TARGET Octrees PROPERTY CXX_STANDARD 20)
 
-set_property(TARGET Octree PROPERTY CXX_STANDARD 20)
-
-target_include_directories(Octree PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(Octrees PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

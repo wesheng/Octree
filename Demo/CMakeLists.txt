@@ -4,10 +4,10 @@
 include(FetchContent)
 
 # Add source to this project's executable.
-add_executable (Demo "App.cpp")
+add_executable (OctreeDemo "App.cpp")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET Octree PROPERTY CXX_STANDARD 20)
+  set_property(TARGET OctreeDemo PROPERTY CXX_STANDARD 20)
 endif()
 
 
@@ -52,6 +52,5 @@ target_sources(imgui INTERFACE
 )
 target_include_directories(imgui INTERFACE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
 
-
-target_link_libraries(Demo Octree glfw glm::glm imgui glad_gl)
+target_link_libraries(OctreeDemo Octrees::Octree glfw glm::glm imgui glad_gl)
 
