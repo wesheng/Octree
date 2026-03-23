@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 
 namespace Octrees
 {
@@ -32,45 +33,58 @@ namespace Octrees
             return x == other.x && y == other.y && z == other.z;
         }
 
+        [[nodiscard]]
         bool approx(const Vec3& other, float tolerance = 0.001f) const {
             Vec3 dif = *this - other;
             return abs(dif.x) < tolerance && abs(dif.y) < tolerance && abs(dif.z) < tolerance;
         }
 
+        [[nodiscard]]
         static bool approx(const Vec3& a, const Vec3& b, float tolerance = 0.001f) {
             return a.approx(b, tolerance);
         }
 
+        [[nodiscard]]
         inline float sqr_magnitude() const {
             return x * x + y * y + z * z;
         }
+
+        [[nodiscard]]
         inline float magnitude() const {
-            return sqrt(sqr_magnitude());
+            return std::sqrt(sqr_magnitude());
         }
+
+        [[nodiscard]]
         inline float min_component() const {
             return std::min(x, std::min(y, z));
         }
+
+        [[nodiscard]]
         inline float max_component() const {
             return std::max(x, std::max(y, z));
         }
 
         //
 
+        [[nodiscard]]
         static float sqr_distance(const Vec3& a, const Vec3& b)
         {
             return (a - b).sqr_magnitude();
         }
 
+        [[nodiscard]]
         static float distance(const Vec3& a, const Vec3& b)
         {
             return (a - b).magnitude();
         }
 
+        [[nodiscard]]
         static float dot(const Vec3& a, const Vec3& b)
         {
             return a.x * b.x + a.y * b.y + a.z * b.z;
         }
 
+        [[nodiscard]]
         static Vec3 min(const Vec3& a, const Vec3& b)
         {
             return {
@@ -80,6 +94,7 @@ namespace Octrees
             };
         }
 
+        [[nodiscard]]
         static Vec3 max(const Vec3& a, const Vec3& b)
         {
             return {

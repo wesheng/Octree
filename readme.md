@@ -36,7 +36,7 @@ The Octree can also be regenerated with new points & depth settings.
 
 - WASD / Shift / Space to move
 - Mouse to look around (camera rotation)
-- Esc to lock camera rotation
+- Esc to toggle locking camera rotation
 
 It uses the following libraries:
 - [GLFW](https://github.com/glfw/glfw.git)
@@ -46,7 +46,7 @@ It uses the following libraries:
 
 Note that the demo *does* make several optimizations for smoother framerate during rendering.
 - Utilizes instanced rendering for the Octree grid and Points
-	- Rendering the grid is disabled when using >100,000 points
+	- Rendering the grid is *disabled* when using more than 100,000 points
 - Caches Octree operation results unless ray is following camera
 
 ## Tests

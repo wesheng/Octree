@@ -1,7 +1,7 @@
 ﻿// Demo
 //
 // Note that this specific subproject is a minimal implementation to showcase the Octree.
-// Further expansion would include use of file loaders, multiple header/source files, and proper management of gl functions and errors.
+// Further expansion could include use of file loaders, multiple header/source files, callbacks, and proper management of gl functions and errors.
 
 #include <iostream>
 #include <Octree.h>
@@ -20,9 +20,36 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+//
+// -- Constants
+//
+
+// Window Width & Height
 const int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
 
+// Maximum number of renderable Octree cube/node
+const int MAX_CUBE_COUNT = 50000;
+const float MAXIMUM_OCTANT_SIZE = 1000.0f;
+
+// Color of top-level rendered Octree cube/node
+const glm::vec3 CUBE_BASE_COLOR = glm::vec3{ 0.9f };
+// Color of rendered cube/node when raycasted
+const glm::vec3 OCTANT_CAST_COLOR = glm::vec3{ 1.0f, 0.4f, 0.4f };
+const glm::vec3 RAY_COLOR = glm::vec3{ 1.0f, 0.0f, 0.0f };
+const glm::vec3 RAY_CAST_POINT_COLOR = glm::vec3{ 0.0f, 1.0f, 0.0f };
+const glm::vec3 RAY_NEIGHBORS_POINT_COLOR = glm::vec3{ 0.0f, 0.0f, 1.0f };
+
+// Number of points threshold is stop rendering the Octree
+const int RENDER_OCTREE_POINT_THRESHOLD = 100000;
+const int MAX_POINT_COUNT = 1400000;
+const int MAX_NEIGHBORS_POINT_COUNT = 5000;
+
+const float CAMERA_MOVEMENT_SPEED = 50.0f;
+const glm::vec2 CAMERA_LOOK_SENSITIVITY = glm::vec2{ 10.0f };
+
+//
 // -- Helper Functions
+//
 
 glm::vec3 toGLMVec3(const Octrees::Vec3& vec) {
     return { vec.x, vec.y, vec.z };
@@ -32,7 +59,9 @@ Octrees::Vec3 toVec3(const glm::vec3& vec) {
     return { vec.x, vec.y, vec.z };
 }
 
+//
 // -- GLSL Shader code
+//
 
 const char* vert_cube_shader = "#version 450\n"
 "layout (location = 0) uniform mat4 uVP;\n"
@@ -99,7 +128,9 @@ const char * frag_point_shader = "#version 450\n"
 "   oColor = vec4(fColor, 1.0);\n"
 "}";
 
+//
 // -- Octree
+//
 
 struct OctreeSettings
 {
@@ -110,7 +141,9 @@ struct OctreeSettings
 } current_octree_settings, edit_octree_settings;
 Octrees::Octree<int> octree;
 
+//
 // -- Octree / Ray GL Objects
+//
 
 GLuint pipeline_cube, pipeline_line, pipeline_dot;
 GLuint v_cube_shader, v_line_shader, f_line_shader, v_dot_shader, f_dot_shader;
@@ -129,28 +162,29 @@ unsigned cube_indices[] = {
 };
 GLuint vbo_cube, vbo_instanced_cube, vio_cube, vao_cube;
 
-const int MAX_CUBE_COUNT = 50000;
 struct Cube {
     glm::vec3 Position{ 0.0f };
     glm::vec3 Scale{ 1.0f };
     glm::vec3 Color{ 1.0f };
 } cubes[MAX_CUBE_COUNT];
 int current_cube_count;
-const int RENDER_OCTREE_POINT_THRESHOLD = 100000;
 
+//
 // -- Point GL Objects
+//
 
-const int MAX_POINT_COUNT = 1400000;
 struct Points {
-    glm::vec3 Position;
-    glm::vec3 Color;
+    glm::vec3 Position{ 0.0f };
+    glm::vec3 Color{ 1.0f };
 } points[MAX_POINT_COUNT];
 GLuint vbo_points, vao_points;
 
 glm::vec3 line[] = {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
 GLuint vbo_line, vao_line;
 
+//
 // -- Camera & Ray Settings
+//
 
 glm::mat4 view = glm::lookAt(glm::vec3{ 0.0f, 0.0f, 75.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
 glm::mat4 projection = glm::perspective(45.0f, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.001f, 1000.0f);
@@ -165,13 +199,13 @@ int ray_nearest = 20;
 glm::vec3 camera_pos = { 0.0f, 0.0f, -75.0f };
 glm::vec3 camera_rotation = { 0.0f, 0.0f, 0.0f };
 glm::quat camera_quat;
-float movement_speed = 50.0f;
-glm::vec2 camera_rotation_speed{ 10.0f };
+
 bool ray_follows_camera = false;
 bool show_octree = true;
 
-
+//
 // -- Caching values
+//
 
 bool should_update_casting = true;
 
@@ -322,7 +356,6 @@ void prepare_octant(const Octrees::Octree<int>* octant, const glm::vec3* color =
     }
     else
     {
-        const glm::vec3 CUBE_BASE_COLOR = glm::vec3{ 0.9f };
         float color_mult = 0.1f;
         draw_color = CUBE_BASE_COLOR - octant->get_depth_level() * color_mult;
     }
@@ -355,14 +388,13 @@ void draw_ray()
     glm::mat4 s = glm::scale(glm::mat4{ 1.0f }, glm::vec3{ 1000.0f });
     glm::mat4 mvp = projection * view * t * r * s;
 
-    glm::vec3 color{ 1.0f, 0.0f, 0.0f };
     glBindProgramPipeline(pipeline_line);
 
     glLineWidth(1.0f);
     glBindVertexArray(vao_line);
 
     glProgramUniformMatrix4fv(v_line_shader, 0, 1, GL_FALSE, glm::value_ptr(mvp));
-    glProgramUniform3fv(v_line_shader, 1, 1, glm::value_ptr(color));
+    glProgramUniform3fv(v_line_shader, 1, 1, glm::value_ptr(RAY_COLOR));
     glDrawArrays(GL_LINES, 0, 2);
 
     glBindProgramPipeline(0);
@@ -376,7 +408,6 @@ void handle_raycast()
     glm::vec3 rot_vec = ray_rotation * glm::vec3{ 0.0f, 0.0f, 1.0f };
     Octrees::Vec3 origin = toVec3(ray_origin);
     Octrees::Vec3 direction = toVec3(rot_vec);
-    const glm::vec3 OCTANT_CAST_COLOR = glm::vec3{ 1.0f, 0.4f, 0.4f };
 
     if (should_update_casting || ray_follows_camera)
     {
@@ -395,7 +426,7 @@ void handle_raycast()
 
     for (auto point : nearest_points)
     {
-        points[point.second].Color = glm::vec3{ 0.0f, 0.0f, 1.0f };
+        points[point.second].Color = RAY_NEIGHBORS_POINT_COLOR;
     }
 
     for (auto node : nodes)
@@ -405,7 +436,7 @@ void handle_raycast()
         {
             if (Octrees::MathUtility::ray_point_intersects(origin, direction, point.first, ray_tolerance))
             {
-                points[point.second].Color = glm::vec3{ 0.0f, 1.0f, 0.0f };
+                points[point.second].Color = RAY_CAST_POINT_COLOR;
             }
         }
         if (show_octree)
@@ -441,7 +472,7 @@ void update_camera(GLFWwindow* window, float dt)
 
     if (can_look)
     {
-        glm::vec2 mouse_movement = mouse_dt * camera_rotation_speed * dt;
+        glm::vec2 mouse_movement = mouse_dt * CAMERA_LOOK_SENSITIVITY * dt;
         camera_rotation.x += mouse_movement.y;
         camera_rotation.x = glm::clamp(camera_rotation.x, -89.99f, 89.99f);
         camera_rotation.y -= mouse_movement.x;
@@ -454,27 +485,27 @@ void update_camera(GLFWwindow* window, float dt)
     glm::vec3 rotation = camera_rotation;
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
     {
-        relative_movement.z += movement_speed;
+        relative_movement.z += CAMERA_MOVEMENT_SPEED;
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
     {
-        relative_movement.z -= movement_speed;
+        relative_movement.z -= CAMERA_MOVEMENT_SPEED;
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
     {
-        relative_movement.x += movement_speed;
+        relative_movement.x += CAMERA_MOVEMENT_SPEED;
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
     {
-        relative_movement.x -= movement_speed;
+        relative_movement.x -= CAMERA_MOVEMENT_SPEED;
     }
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
     {
-        absolute_movement.y += movement_speed;
+        absolute_movement.y += CAMERA_MOVEMENT_SPEED;
     }
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
     {
-        absolute_movement.y -= movement_speed;
+        absolute_movement.y -= CAMERA_MOVEMENT_SPEED;
     }
     camera_pos += camera_quat * relative_movement * dt;
     camera_pos += absolute_movement * dt;
@@ -541,7 +572,7 @@ void gui(float dt)
         ImGui::BeginDisabled(current_octree_settings.point_count > RENDER_OCTREE_POINT_THRESHOLD);
         ImGui::Checkbox("Show Octree Grid (Affects Performance)", &show_octree);
         ImGui::EndDisabled();
-        ImGui::SliderFloat("Grid Size", &edit_octree_settings.size, 50.0f, 1000.0f);
+        ImGui::SliderFloat("Grid Size", &edit_octree_settings.size, 50.0f, MAXIMUM_OCTANT_SIZE);
 
         int depth = edit_octree_settings.max_depth;
         if (ImGui::SliderInt("Max Depth", &depth, 0, 10))
@@ -584,7 +615,7 @@ void gui(float dt)
         {
             should_update_casting = true;
         }
-        int max_point_count = std::min(edit_octree_settings.point_count, 5000);
+        int max_point_count = std::min(edit_octree_settings.point_count, MAX_NEIGHBORS_POINT_COUNT);
         if (ImGui::SliderInt("Num Nearest Points (Affects Performance)", &ray_nearest, 0, max_point_count))
         {
             should_update_casting = true;

@@ -12,15 +12,18 @@ namespace Octrees
         Vec3 center{ 0.0f, 0.0f, 0.0f };
         Vec3 size{ 0.0f, 0.0f, 0.0f };
 
+        [[nodiscard]]
         inline Vec3 get_half_size() {
             return size / 2.0f;
         }
 
+        [[nodiscard]]
         inline Vec3 get_min()
         {
             return center - get_half_size();
         }
 
+        [[nodiscard]]
         inline Vec3 get_max()
         {
             return center + get_half_size();
@@ -32,6 +35,7 @@ namespace Octrees
             center = min + get_half_size();
         }
 
+        [[nodiscard]]
         inline bool contains(Vec3 point)
         {
             Vec3 min = get_min();
@@ -41,12 +45,14 @@ namespace Octrees
                 (point.z >= min.z && point.z <= max.z);
         }
 
+        [[nodiscard]]
         inline bool intersects_sphere(Vec3 center, float radius)
         {
             // sphere - aabb test
             return MathUtility::aabb_sphere_intersects(get_min(), get_max(), center, radius);
         }
 
+        [[nodiscard]]
         inline bool intersects_ray(Vec3 origin, Vec3 direction)
         {
             return MathUtility::aabb_ray_intersects(get_min(), get_max(), origin, direction);

@@ -23,7 +23,8 @@ namespace Octrees
         using Octants = std::array<Octree<T>, 8>;
         using PointPair = std::pair<Vec3, T>;
 
-        struct ComparePointPairDistance // used for priority queue.
+        // Used for priority queue.
+        struct ComparePointPairDistance 
         {
             bool operator()(const std::pair<PointPair, float> l, const std::pair<PointPair, float> r)
             {
@@ -44,7 +45,6 @@ namespace Octrees
         public:
             using iterator_category = std::forward_iterator_tag;
             using difference_type = std::ptrdiff_t;
-            using value_type = Octree<T>;
 
             OctantIterator(Octree<T>* octree)
             {
@@ -146,6 +146,7 @@ namespace Octrees
          * @param point The point
          * @return If the point exists.
          */
+        [[nodiscard]]
         bool has(Vec3 point)
         {
             if (bounds_.contains(point))
@@ -172,6 +173,7 @@ namespace Octrees
          * @param k_count The number of points to find.
          * @return A sorted vector (from closest to furthest) containing the nearby points.
          */
+        [[nodiscard]]
         std::vector<PointPair> nearest(Vec3 point, int k_count)
         {
             // K-NN Implementation partially based on the work described by Jun Zhu et. al.:
@@ -197,6 +199,7 @@ namespace Octrees
          * @param ray_direction The direction of the ray
          * @return A list of Octree nodes.
          */
+        [[nodiscard]]
         std::vector<const Octree*> intersects_nodes(Vec3 ray_origin, Vec3 ray_direction)
         {
             // returns const Octree * to prevent manipulation of data
@@ -213,6 +216,7 @@ namespace Octrees
          * @return A list of points.
          * @remarks Utilizes intersects_nodes() to find points.
          */
+        [[nodiscard]]
         std::vector<PointPair> intersects_points(Vec3 ray_origin, Vec3 ray_direction, float tolerance = 0.001f)
         {
             std::vector<const Octree*> nodes = intersects_nodes(ray_origin, ray_direction);
@@ -234,6 +238,7 @@ namespace Octrees
          * @brief Retrieves the bounds of the Octree.
          * @return The bounds
          */
+        [[nodiscard]]
         inline Bounds get_bounds() const { return bounds_; }
 
         /**
@@ -241,12 +246,21 @@ namespace Octrees
          * @return The list of points
          * @remarks Does not return points stored inside child octants.
          */
+        [[nodiscard]]
         inline std::vector<PointPair> get_points() const { return points_; }
+
+        /**
+         * @brief Gets the current recursive depth level of this node.
+         * @return The depth level
+         */
+        [[nodiscard]]
         inline int get_depth_level() const { return depth_level_; }
+
         /**
          * @brief Determines whether this node is a leaf (no children) or not (has children).
          * @return Whether the node is a leaf or not.
          */
+        [[nodiscard]]
         inline bool is_leaf() const
         {
             return children_ == nullptr;
