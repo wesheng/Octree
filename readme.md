@@ -9,12 +9,13 @@ The project is set up with the following subprojects:
 - `Tests` - Ensure quality and consistency of Octree implementation
 
 ## Features
+- Raycast for intersecting points (and octants)
+	- Works with 1,200,000 points with depth of 3 at ~60 fps (tested on AMD Ryzen 5 5600X)
 - Ability to search for nearest points close to a passed position (K-nearest neighbor)
     - Use of Sphere-AABB testing to determine octants near the passed position
-- Raycast for intersecting points (and octants)
 - Storage of identifiers to points for future retrieval
-- Ability to iterate through octants
-- Error handling for points outside of Octree bounds
+- Ability to iterate through octants via iterators
+- Throws exceptions for points outside of Octree bounds
 
 ## Building
 This project uses Cmake as a build configuration tool. Typically the command for configuring and generating a project goes along the lines of:
@@ -53,7 +54,7 @@ This project uses [GoogleTest](https://github.com/google/googletest) as the test
 
 ## Future Work
 
-- Performance of this implementation compared to other implementations
-- Searching nearest neighbors incurs the largest performance cost
+- Benchmark performance of this implementation compared to other Octree implementations
+- Add frustrum casting to cull for visible points for improved rendering performance
 - Support for storing triangles and other structures for meshes
-- 
+- Ability to move and remove points

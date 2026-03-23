@@ -12,7 +12,7 @@ TEST(OctreeTest, AddPointInBounds)
 {
     Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
     Octree<int> octree{ bounds, 5, 5 };
-    EXPECT_NO_THROW(octree.add({ 0.0f, 0.0f, 0.0f }, 0));
+    EXPECT_TRUE(octree.add({ 0.0f, 0.0f, 0.0f }, 0));
 }
 
 TEST(OctreeTest, AddPointOnBounds)
@@ -21,14 +21,14 @@ TEST(OctreeTest, AddPointOnBounds)
 
     Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
     Octree<int> octree{ bounds, 5, 5 };
-    EXPECT_NO_THROW(octree.add({ 50.0f, 50.0f, 50.0f }, 0));
+    EXPECT_TRUE(octree.add({ 50.0f, 50.0f, 50.0f }, 0));
 }
 
 TEST(OctreeTest, TryPlaceOutsideBounds)
 {
     Bounds bounds{ {0.0f, 0.0f, 0.0f}, {100.0f, 100.0f, 100.0f} };
     Octree<int> octree{ bounds, 5, 5 };
-    EXPECT_ANY_THROW(octree.add({ 500.0f, 500.0f, 500.0f }, 0));
+    EXPECT_FALSE(octree.add({ 500.0f, 500.0f, 500.0f }, 0));
 }
 
 TEST_P(OctreePointsFixture, AddMultiplePoints)
@@ -44,7 +44,7 @@ TEST_P(OctreePointsFixture, AddMultiplePoints)
     for (int i = 0; i < GetParam(); i++)
     {
         Vec3 point{ rand_dist(rand_engine), rand_dist(rand_engine) , rand_dist(rand_engine) };
-        EXPECT_NO_THROW(octree.add(point, i));
+        EXPECT_TRUE(octree.add(point, i));
     }
 }
 
@@ -116,7 +116,7 @@ TEST_P(OctreePointsFixture, NearestPoint)
     }
 }
 
-INSTANTIATE_TEST_SUITE_P(ManyPoints, OctreePointsFixture, testing::Values(1, 10, 100, 1000, 10000));
+INSTANTIATE_TEST_SUITE_P(ManyPoints, OctreePointsFixture, testing::Values(1, 5, 10, 100, 1000, 10000, 100000));
 
 TEST(OctreeTest, NearestInAnotherOctant)
 {

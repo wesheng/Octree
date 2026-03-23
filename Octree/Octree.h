@@ -115,27 +115,28 @@ public:
     /**
      * @brief Adds a point to the Octree. The point should be within bounds of the Octree.
      * @param point The position.
-     * @param entity The identifier with the position.
-     * @throws std::exception If the point is not within the Octree bounds.
+     * @param entity The identifier associated with the position.
+     * @return True if the insertion was successful.
      */
-    void add(Vec3 point, T entity)
+    bool add(Vec3 point, T entity)
     {
-        if (!bounds_.contains(point))
+        bool can_add = bounds_.contains(point);
+        if (can_add)
         {
-            throw std::exception("Point not in bounds.");
+            if (children_ != nullptr)
+            {
+                // find child to insert
+                can_add = insert_children(point, entity);
+            }
+            else
+            {
+                // insert to points, or subdivide.
+                try_insert_point(point, entity);
+            }
+            num_points_++;
         }
 
-        if (children_ != nullptr)
-        {
-            // find child to insert
-            insert_children(point, entity);
-        }
-        else
-        {
-            // insert to points, or subdivide.
-            try_insert_point(point, entity);
-        }
-        num_points_++;
+        return can_add;
     }
 
     /**
@@ -167,7 +168,7 @@ public:
      * @brief Retrieves a sorted list of the nearest points of a specified location.
      * @param point The location to start searching from.
      * @param k_count The number of points to find.
-     * @return A vector containing the nearby points.
+     * @return A sorted vector (from closest to furthest) containing the nearby points.
      */
     std::vector<PointPair> nearest(Vec3 point, int k_count)
     {
@@ -177,13 +178,13 @@ public:
         PriorityQueuePointPairDistance candidates;
         nearest(point, k_count, candidates);
 
-        // return slice
         std::vector<PointPair> output;
         while (!candidates.empty())
         {
             output.push_back(candidates.top().first);
             candidates.pop();
         }
+        std::reverse(output.begin(), output.end());
 
         return output;
     }
@@ -292,6 +293,14 @@ private:
 
     void nearest(Vec3 point, int k_count, PriorityQueuePointPairDistance& candidates)
     {
+        // if we are still discovering candidates then use max distance.
+        // otherwise if candidates is full use the top.
+        float furthest_sqr_dst = std::numeric_limits<float>::max();
+        if (candidates.size() >= k_count)
+        {
+            furthest_sqr_dst = candidates.top().second;
+        }
+
         if (!is_leaf())
         {
             Octants& children = *children_;
@@ -299,14 +308,6 @@ private:
             // find the octant point is residing in and test those
             unsigned index = get_child_index(point);
             children[index].nearest(point, k_count, candidates);
-
-            // if we are still discovering candidates then use max distance.
-            // otherwise if candidates is full use the top.
-            float furthest_sqr_dst = std::numeric_limits<float>::max();
-            if (candidates.size() >= k_count)
-            {
-                furthest_sqr_dst = candidates.top().second;
-            }
 
             // if point is near another quadrant check those too
             for (int i = 0; i < children.size(); i++)
@@ -324,11 +325,15 @@ private:
             for (PointPair p : points_)
             {
                 float distance = Vec3::sqr_distance(point, p.first);
-                candidates.push({ p, distance });
-                if (candidates.size() > k_count)
+                if (distance < furthest_sqr_dst)
                 {
-                    candidates.pop();
+                    candidates.push({ p, distance });
+                    if (candidates.size() > k_count)
+                    {
+                        candidates.pop();
+                    }
                 }
+
             }
         }
     }
@@ -380,10 +385,10 @@ private:
         return (greater_x << 0) + (greater_y << 1) + (greater_z << 2);
     }
 
-    void insert_children(Vec3 point, T entity)
+    bool insert_children(Vec3 point, T entity)
     {
         unsigned index = get_child_index(point);
-        (*children_)[index].add(point, entity);
+        return (*children_)[index].add(point, entity);
     }
 
     void subdivide()

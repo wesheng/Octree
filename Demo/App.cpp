@@ -161,7 +161,6 @@ glm::vec3 ray_rotation_euler = glm::vec3{ 15.0f, 330.0f, 0.0f };
 glm::quat ray_rotation{ glm::vec3{0.0f} };
 float ray_tolerance = 1.0f;
 
-const int RAY_NEAREST_POINT_THRESHOLD = 100000;
 int ray_nearest = 20;
 
 glm::vec3 camera_pos = { 0.0f, 0.0f, -75.0f };
@@ -270,7 +269,7 @@ void setup_octree(OctreeSettings settings)
     std::default_random_engine rand_engine { rand_device()};
     std::uniform_real_distribution<float> rand_dist{ -settings.size / 2.0f, settings.size / 2.0f };
 
-    float time = glfwGetTime();
+    float time = static_cast<float>(glfwGetTime());
     Bounds bounds { {0.0f, 0.0f, 0.0f}, {settings.size, settings.size, settings.size} };
     octree = Octree<int>{ bounds, settings.min_capacity, settings.max_depth };
     for (int i = 0; i < settings.point_count; i++)
@@ -280,7 +279,7 @@ void setup_octree(OctreeSettings settings)
         octree.add(toVec3(points[i].Position), i);
     }
 
-    float finish_time = glfwGetTime();
+    float finish_time = static_cast<float>(glfwGetTime());
     current_octree_settings = settings;
     std::cout << "Generated " << settings.point_count << " points in " << (finish_time - time) << " seconds." << std::endl;
 }
@@ -543,7 +542,7 @@ void gui(float dt)
         ImGui::BeginDisabled(current_octree_settings.point_count > RENDER_OCTREE_POINT_THRESHOLD);
         ImGui::Checkbox("Show Octree Grid (Affects Performance)", &show_octree);
         ImGui::EndDisabled();
-        ImGui::SliderFloat("Grid Size", &edit_octree_settings.size, 50.0f, 500.0f);
+        ImGui::SliderFloat("Grid Size", &edit_octree_settings.size, 50.0f, 1000.0f);
 
         int depth = edit_octree_settings.max_depth;
         if (ImGui::SliderInt("Max Depth", &depth, 0, 10))
@@ -555,10 +554,6 @@ void gui(float dt)
             if (edit_octree_settings.point_count > RENDER_OCTREE_POINT_THRESHOLD)
             {
                 show_octree = false;
-            }
-            if (edit_octree_settings.point_count > RAY_NEAREST_POINT_THRESHOLD)
-            {
-                ray_nearest = 0;
             }
             setup_octree(edit_octree_settings);
             should_update_casting = true;
@@ -590,12 +585,11 @@ void gui(float dt)
         {
             should_update_casting = true;
         }
-        ImGui::BeginDisabled(current_octree_settings.point_count > RAY_NEAREST_POINT_THRESHOLD);
-        if (ImGui::SliderInt("Num Nearest Points (Affects Performance)", &ray_nearest, 0, edit_octree_settings.point_count))
+        int max_point_count = std::min(edit_octree_settings.point_count, 5000);
+        if (ImGui::SliderInt("Num Nearest Points (Affects Performance)", &ray_nearest, 0, max_point_count))
         {
             should_update_casting = true;
         }
-        ImGui::EndDisabled();
         ImGui::TreePop();
     }
     ImGui::End();
@@ -653,10 +647,10 @@ int main()
     setup_octree(current_octree_settings);
     setup_gl();
 
-    static float prev_time = glfwGetTime();
+    static float prev_time = static_cast<float>(glfwGetTime());
     while (!glfwWindowShouldClose(window))
     {
-        float current_time = glfwGetTime();
+        float current_time = static_cast<float>(glfwGetTime());
         float dt = current_time - prev_time;
         prev_time = current_time;
 

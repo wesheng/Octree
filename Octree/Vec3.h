@@ -52,7 +52,6 @@ struct Vec3
         return std::max(x, std::max(y, z));
     }
 
-
     //
 
     static float sqr_distance(const Vec3& a, const Vec3& b)
