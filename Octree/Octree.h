@@ -106,17 +106,17 @@ namespace Octrees
 
         /**
          * @brief Creates a Octree
-         * @param bounds
-         * @param min_capacity
-         * @param max_depth
+         * @param bounds The dimensions of the Octree
+         * @param min_capacity The minimum number of points before subdividing
+         * @param max_depth The maximum recursive depth of subdivisions
          */
         Octree(Bounds bounds, unsigned min_capacity = 10, unsigned max_depth = 5) : bounds_(bounds), min_capacity_(min_capacity), max_depth_(max_depth)
         {}
 
         /**
          * @brief Adds a point to the Octree. The point should be within bounds of the Octree.
-         * @param point The position.
-         * @param entity The identifier associated with the position.
+         * @param point The position
+         * @param entity The identifier associated with the position
          * @return True if the insertion was successful.
          */
         bool add(Vec3 point, T entity)

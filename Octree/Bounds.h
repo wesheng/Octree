@@ -5,8 +5,8 @@
 namespace Octrees
 {
     /**
-* @brief Bounds describing center and size.
-*/
+    * @brief Bounds describing center and size.
+    */
     struct Bounds
     {
         Vec3 center{ 0.0f, 0.0f, 0.0f };
