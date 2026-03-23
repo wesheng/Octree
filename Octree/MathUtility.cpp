@@ -1,13 +1,13 @@
 #include "MathUtility.h"
 
-bool Octrees::MathUtility::aabb_sphere_intersects(Vec3 min, Vec3 max, Vec3 center, float radius)
+bool Octrees::MathUtility::aabb_sphere_intersects(Vec3 min, Vec3 max, Vec3 sphere_center, float radius)
 {
     Vec3 clamped = {
-        MathUtility::clamp(center.x, min.x, max.x),
-        MathUtility::clamp(center.y, min.y, max.y),
-        MathUtility::clamp(center.z, min.z, max.z)
+        MathUtility::clamp(sphere_center.x, min.x, max.x),
+        MathUtility::clamp(sphere_center.y, min.y, max.y),
+        MathUtility::clamp(sphere_center.z, min.z, max.z)
     };
-    float sqr_distance = Vec3::sqr_distance(clamped, center);
+    float sqr_distance = Vec3::sqr_distance(clamped, sphere_center);
     return sqr_distance <= radius * radius;
 }
 
