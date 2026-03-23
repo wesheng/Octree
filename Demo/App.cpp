@@ -43,7 +43,11 @@ const glm::vec3 RAY_NEIGHBORS_POINT_COLOR = glm::vec3{ 0.0f, 0.0f, 1.0f };
 
 // Number of points threshold is stop rendering the Octree
 const int RENDER_OCTREE_POINT_THRESHOLD = 100000;
+#if NDEBUG
+const int MAX_POINT_COUNT = 3500000;
+#else
 const int MAX_POINT_COUNT = 1400000;
+#endif
 const int MAX_NEIGHBORS_POINT_COUNT = 5000;
 
 const float CAMERA_MOVEMENT_SPEED = 50.0f;
