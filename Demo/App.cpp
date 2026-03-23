@@ -141,7 +141,7 @@ const int RENDER_OCTREE_POINT_THRESHOLD = 100000;
 
 // -- Point GL Objects
 
-const int MAX_POINT_COUNT = 1200000;
+const int MAX_POINT_COUNT = 1400000;
 struct Points {
     glm::vec3 Position;
     glm::vec3 Color;

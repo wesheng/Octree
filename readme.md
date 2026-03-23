@@ -46,7 +46,7 @@ It uses the following libraries:
 
 Note that the demo *does* make several optimizations for smoother framerate during rendering.
 - Utilizes instanced rendering for the Octree grid and Points
-	- Rendering the grid is disabled for large number of points
+	- Rendering the grid is disabled when using >100,000 points
 - Caches Octree operation results unless ray is following camera
 
 ## Tests
