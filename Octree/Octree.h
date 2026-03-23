@@ -83,7 +83,6 @@ namespace Octrees
                 return !(*this == other);
             }
 
-
         private:
             void find_children(Octree<T>* octree) {
                 Octants& children = *(octree->children_);

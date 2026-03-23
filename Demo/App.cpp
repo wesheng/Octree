@@ -35,6 +35,8 @@ const float MAXIMUM_OCTANT_SIZE = 1000.0f;
 const glm::vec3 CUBE_BASE_COLOR = glm::vec3{ 0.9f };
 // Color of rendered cube/node when raycasted
 const glm::vec3 OCTANT_CAST_COLOR = glm::vec3{ 1.0f, 0.4f, 0.4f };
+
+const float RAY_LENGTH = 1000.0f;
 const glm::vec3 RAY_COLOR = glm::vec3{ 1.0f, 0.0f, 0.0f };
 const glm::vec3 RAY_CAST_POINT_COLOR = glm::vec3{ 0.0f, 1.0f, 0.0f };
 const glm::vec3 RAY_NEIGHBORS_POINT_COLOR = glm::vec3{ 0.0f, 0.0f, 1.0f };
@@ -385,7 +387,7 @@ void draw_ray()
 {
     glm::mat4 t = glm::translate(glm::mat4{ 1.0f }, ray_origin);
     glm::mat4 r = glm::mat4_cast(ray_rotation);
-    glm::mat4 s = glm::scale(glm::mat4{ 1.0f }, glm::vec3{ 1000.0f });
+    glm::mat4 s = glm::scale(glm::mat4{ 1.0f }, glm::vec3{ RAY_LENGTH });
     glm::mat4 mvp = projection * view * t * r * s;
 
     glBindProgramPipeline(pipeline_line);

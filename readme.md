@@ -1,7 +1,7 @@
 # Octree
 A recursive implementation of [Octrees](https://en.wikipedia.org/wiki/Octree) using the C++20 compiler.
 
-Note that modern C++ features are utilized in this project, including use of managed pointers.
+Note that modern C++ features are utilized in this project, including use of STL functions and managed pointers.
 
 The project is set up with the following subprojects:
 - `Octree` - Main implementation
@@ -14,8 +14,7 @@ The project is set up with the following subprojects:
 - Ability to search for nearest points close to a passed position (K-nearest neighbor)
     - Use of Sphere-AABB testing to determine octants near the passed position
 - Storage of identifiers to points for future retrieval
-- Ability to iterate through octants via iterators
-- Throws exceptions for points outside of Octree bounds
+- Ability to iterate through octants via foreach
 
 ## Building
 This project uses Cmake as a build configuration tool. Typically the command for configuring and generating a project goes along the lines of:
@@ -25,7 +24,7 @@ cmake -S . -B ./out
 cmake --build ./out
 ```
 
-Demo and Test dependencies will be downloaded automatically via FetchContent.
+Demo and Test dependencies will be downloaded automatically via FetchContent. You can see a list of dependencies under each subproject below.
 
 The project was tested using the MSVC compiler on Windows.
 
