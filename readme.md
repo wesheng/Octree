@@ -49,6 +49,8 @@ Note that the demo *does* make several optimizations for smoother framerate duri
 	- Rendering the grid is *disabled* when using more than 100,000 points
 - Caches Octree operation results unless ray is following camera
 
+Additionally, depth testing is not enabled by default as it affects grid rendering, but you can enable it through the imgui interface.
+
 ## Tests
 This project uses [GoogleTest](https://github.com/google/googletest) as the test suite. Tests focus on the Octree itself; tests for utility classes are out of scope for this project.
 

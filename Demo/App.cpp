@@ -30,6 +30,7 @@ const int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
 // Maximum number of renderable Octree cube/node
 const int MAX_CUBE_COUNT = 50000;
 const float MAXIMUM_OCTANT_SIZE = 1000.0f;
+const int DEFAULT_POINT_COUNT = 5000;
 
 // Color of top-level rendered Octree cube/node
 const glm::vec3 CUBE_BASE_COLOR = glm::vec3{ 0.9f };
@@ -143,7 +144,7 @@ struct OctreeSettings
     float size = 50.0f;
     unsigned min_capacity = 15;
     unsigned max_depth = 5; 
-    int point_count = 500;
+    int point_count = DEFAULT_POINT_COUNT;
 } current_octree_settings, edit_octree_settings;
 Octrees::Octree<int> octree;
 
@@ -208,6 +209,7 @@ glm::quat camera_quat;
 
 bool ray_follows_camera = false;
 bool show_octree = true;
+bool use_depth_test = false;
 
 //
 // -- Caching values
@@ -218,6 +220,7 @@ bool should_update_casting = true;
 void setup_gl()
 {
     glEnable(GL_PROGRAM_POINT_SIZE);
+    
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
    
     // Shader Programs & Pipelines
@@ -628,6 +631,22 @@ void gui(float dt)
         }
         ImGui::TreePop();
     }
+
+    if (ImGui::TreeNode("Other"))
+    {
+        if (ImGui::Checkbox("Depth Test", &use_depth_test))
+        {
+            if (use_depth_test)
+            {
+                glEnable(GL_DEPTH_TEST);
+            }
+            else
+            {
+                glDisable(GL_DEPTH_TEST);
+            }
+        }
+        ImGui::TreePop();
+    }
     ImGui::End();
 }
 
@@ -691,7 +710,10 @@ int main()
         prev_time = current_time;
 
         glClearColor(0.3f, 0.5f, 0.5f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+
+        int clear_bits = GL_COLOR_BUFFER_BIT;
+        if (use_depth_test) clear_bits |= GL_DEPTH_BUFFER_BIT;
+        glClear(clear_bits);
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
