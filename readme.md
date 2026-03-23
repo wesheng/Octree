@@ -1,5 +1,5 @@
 # Octree
-A recursive implementation of [Octrees](https://en.wikipedia.org/wiki/Octree) using the C++20 compiler.
+A recursive implementation of [Octrees](https://en.wikipedia.org/wiki/Octree) using C++20.
 
 Note that modern C++ features are utilized in this project, including use of STL functions and managed pointers.
 
@@ -15,10 +15,10 @@ The project is set up with the following subprojects:
 - Ability to search for nearest points close to a passed position (K-nearest neighbor)
     - Use of Sphere-AABB testing to determine octants near the passed position
 - Storage of identifiers to points for future retrieval
-- Ability to iterate through octants via foreach
+- Ability to iterate through octants via range-based for loop
 
 ## Building
-This project uses Cmake as a build configuration tool. Typically the command for configuring and generating a project goes along the lines of:
+This project uses CMake as a build configuration tool. Typically the command for configuring and generating a project goes along the lines of:
 
 ```bash
 cmake -S . -B ./out
@@ -30,7 +30,7 @@ Demo and Test dependencies will be downloaded automatically via FetchContent. Yo
 The project was tested using the MSVC compiler on Windows.
 
 ## Demo
-The Demo is an minimal, interactive OpenGL 4.6 implementation (w/ DSA) created to showcase the Octree. It uses a rendered ray to demonstrate raycasting and nearby neighbors onto a randomized set of points, representing entities. The ray can be set to a static position or to follow camera position and rotation.
+The Demo is a minimal, interactive OpenGL 4.6 implementation (w/ DSA) created to showcase the Octree. It uses a rendered ray to demonstrate raycasting and nearby neighbors against a randomized set of points, representing entities. The ray can be set to a static position or to follow camera position and rotation.
 
 The Octree can also be regenerated with new points & depth settings.
 
@@ -51,7 +51,7 @@ Note that the demo does make several optimizations for smoother framerate during
 
 Additionally, depth testing is not enabled by default as it affects grid rendering, but you can enable it through the imgui interface.
 
-### Description of Demo GUI functions
+### Description of Demo GUI options
 - Octree
 	- `Show Octree Grid` - Toggles rendering the Octree grid. Affects performance.
 	- `Grid Size` - Sets the size & bounds of the Octree grid
@@ -73,6 +73,6 @@ This project uses [GoogleTest](https://github.com/google/googletest) as the test
 ## Future Work
 
 - Benchmark performance of this implementation compared to other Octree implementations
-- Add frustrum casting to cull for visible points for improved rendering performance
+- Add frustum casting to cull for visible points for improved rendering performance
 - Support for storing triangles and other structures for meshes
 - Ability to move and remove points
