@@ -10,7 +10,7 @@ The project is set up with the following subprojects:
 
 ## Features
 - Raycast for intersecting points (and octants)
-	- ~60 fps with 1,200,000 points (Debug) and 3,500,000 (Release)
+	- ~60 fps with 1,200,000 (Debug) and 3,500,000 (Release) points
 	- Tested with depth of 3 on AMD Ryzen 5 5600X without searching nearby neighbors
 - Ability to search for nearest points close to a passed position (K-nearest neighbor)
     - Use of Sphere-AABB testing to determine octants near the passed position
